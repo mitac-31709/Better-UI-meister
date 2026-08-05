@@ -358,7 +358,6 @@ async function handleCronTick(request, env) {
     ok: true,
     id: result.sub.id,
     sent: result.sent || 0,
-    skippedParse: Boolean(result.skippedParse),
     disabled: result.sub.disabled,
     error: result.error || null
   });

@@ -3,10 +3,8 @@
  * 各購読について元アプリの未読を取り、新しいものだけ Discord へ送る。
  * ブラウザの Watcher と同じ差分ロジック（pickNewNotifications）を使う。
  *
- * CPU 削減:
- *   - 未読件数が前回と同じ（または減った）ときは一覧 HTML のパースをしない
- *   - Cron 本体は購読 id を列挙して 1 人ずつ HTTP に振り分け、
- *     処理ごとの CPU 枠を分ける（Workers は呼び出し単位で CPU を数える）
+ * Cron 本体は購読 id を列挙して 1 人ずつ HTTP に振り分け、
+ * 処理ごとの CPU 枠を分ける（Workers は呼び出し単位で CPU を数える）。
  */
 
 import { forwardDiscord } from './discord.js';
@@ -142,30 +140,10 @@ export async function processSubscription(sub, env, {
   try {
     const { count } = await unreadCountFn(sub.cookie);
     const n = typeof count === 'number' ? count : 0;
-    const prevCount = Number.isFinite(sub.count) ? sub.count : 0;
     const stamp = now().toISOString();
 
-    // 件数不変・減少時は一覧パースを省略（CPU の大半はここ）。
-    // トレードオフ: 既読 1 + 新着 1 で件数が同じだと、次に件数が増えるまで気付かない。
-    if (sub.primed && n <= prevCount) {
-      return {
-        sub: {
-          ...sub,
-          count: n,
-          updatedAt: stamp,
-          lastOkAt: stamp,
-          lastError: null,
-          disabled: false
-        },
-        sent: 0,
-        skipped: false,
-        skippedParse: true
-      };
-    }
-
-    let list = [];
     const body = await htmlFn(sub.cookie, '/notifications');
-    list = parseNotifications(body).notifications || [];
+    const list = parseNotifications(body).notifications || [];
 
     const result = pickNewNotifications({
       prev: { primed: sub.primed, count: sub.count, seenIds: sub.seenIds },
@@ -191,7 +169,7 @@ export async function processSubscription(sub, env, {
       lastError: null,
       disabled: false
     };
-    return { sub: next, sent, skipped: false, skippedParse: false };
+    return { sub: next, sent, skipped: false };
   } catch (e) {
     const message = e instanceof ApiError
       ? `${e.status}: ${e.message}`
@@ -210,14 +188,13 @@ export async function processSubscription(sub, env, {
 /** テスト用。本番 Cron は 1 人ずつ HTTP に振り分ける。 */
 export async function runBackgroundNotify(env, deps = {}) {
   const subs = await listSubscriptions(env);
-  const summary = { checked: 0, sent: 0, errors: 0, disabled: 0, skippedParse: 0 };
+  const summary = { checked: 0, sent: 0, errors: 0, disabled: 0 };
 
   for (const sub of subs) {
     summary.checked += 1;
     const result = await processSubscription(sub, env, deps);
     await putSubscription(env, result.sub);
     summary.sent += result.sent || 0;
-    if (result.skippedParse) summary.skippedParse += 1;
     if (result.error) summary.errors += 1;
     if (result.sub.disabled) summary.disabled += 1;
   }

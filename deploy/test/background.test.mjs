@@ -93,53 +93,6 @@ describe('processSubscription', () => {
     assert.equal(result.sent, 0);
     assert.match(result.error, /401/);
   });
-
-  test('件数が同じなら一覧パースをしない', async () => {
-    let htmlCalls = 0;
-    const result = await processSubscription({
-      id: 's3',
-      cookie: 'c',
-      webhookUrl: 'https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwx-yz_ABCDE',
-      primed: true,
-      count: 2,
-      seenIds: ['1', '2'],
-      disabled: false
-    }, {}, {
-      unreadCountFn: async () => ({ count: 2 }),
-      htmlFn: async () => {
-        htmlCalls += 1;
-        return '<main></main>';
-      },
-      forwardFn: async () => ({ ok: true, status: 204 })
-    });
-    assert.equal(htmlCalls, 0);
-    assert.equal(result.skippedParse, true);
-    assert.equal(result.sent, 0);
-    assert.equal(result.sub.count, 2);
-  });
-
-  test('件数が減ったときもパースせず基準だけ下げる', async () => {
-    let htmlCalls = 0;
-    const result = await processSubscription({
-      id: 's4',
-      cookie: 'c',
-      webhookUrl: 'https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwx-yz_ABCDE',
-      primed: true,
-      count: 3,
-      seenIds: ['1', '2', '3'],
-      disabled: false
-    }, {}, {
-      unreadCountFn: async () => ({ count: 1 }),
-      htmlFn: async () => {
-        htmlCalls += 1;
-        return '<main></main>';
-      },
-      forwardFn: async () => ({ ok: true, status: 204 })
-    });
-    assert.equal(htmlCalls, 0);
-    assert.equal(result.skippedParse, true);
-    assert.equal(result.sub.count, 1);
-  });
 });
 
 describe('cronTickToken', () => {
