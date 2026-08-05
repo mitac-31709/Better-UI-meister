@@ -73,12 +73,16 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 | `GET` | `/api/me` | ログイン中の利用者（表示名は元アプリから読む） |
 | `GET` | `/api/dashboard` | ダッシュボード |
 | `GET` | `/api/reports` | 週報一覧 |
-| `GET` | `/api/orders` | 注文 |
+| `GET` | `/api/orders` | 注文一覧 |
+| `POST` | `/api/orders` | 新しい注文を元アプリへ作成 |
 | `GET` | `/api/equipments` | 機材 |
 | `GET` | `/api/loans` | 貸出 |
 | `GET` | `/api/notifications` | 通知 |
 | `GET` | `/api/notifications/unread_count` | 元アプリの JSON をそのまま通す |
-| `POST` | `/api/notify/discord` | Discord Incoming Webhook へ中継（URL は保存しない） |
+| `POST` | `/api/notify/discord` | Discord Incoming Webhook へ即時中継 |
+| `POST` | `/api/notify/subscribe` | バックグラウンド購読を登録（KV） |
+| `PATCH` | `/api/notify/subscribe` | 購読の Rails Cookie を更新 |
+| `DELETE` | `/api/notify/subscribe` | 購読を削除 |
 | `GET` | `/api/health` | 設定の確認（秘密は返さない） |
 
 画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。例（`/api/orders`）:
@@ -99,19 +103,36 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 
 ### 変更通知（ブラウザ / Discord）
 
-画面のレール「届け先」から、未読が増えたときの転送先を選べる。
+画面のレール「通知」から、未読が増えたときの転送先を同じ画面で設定できる。
 
 | 届け先 | 動き |
 | --- | --- |
-| ブラウザ | Notification API。許可は端末のブラウザ設定 |
-| Discord | Incoming Webhook。URL は **端末の localStorage だけ**に保存 |
+| ブラウザ | Notification API。タブ（または OS の通知許可）が必要 |
+| Discord | Incoming Webhook。保存時にテスト送信。成功したら **バックグラウンド購読**も登録 |
 
-未読件数は表示中 60 秒・非表示 5 分でポーリングする。初回の観測は基準値にする
-だけで送らない（ログイン直後に既存の未読をまとめて飛ばさない）。
+### タブを閉じても Discord へ送る仕組み
 
-Discord へはブラウザから直接飛ばず、`POST /api/notify/discord` が中継する
-（CORS 回避）。Worker は Webhook URL を保存しない。オープンプロキシにしないため
-ログイン必須で、`discord.com` / `discordapp.com` の Webhook 形だけを受け付ける。
+1. Discord 保存成功後、`POST /api/notify/subscribe` が Rails セッション Cookie と Webhook URL を
+   `SESSION_SECRET` で封印して KV（`NOTIFY_SUBS`）へ置く
+2. Cron（`0 * * * *` = 毎時）が購読を見て未読を取り、新しいものだけ Discord へ送る
+3. タブを開いている間はポーリングのついでに Cookie を書き戻し、寿命を延ばす
+4. Discord オフ・ログアウトで購読を削除する
+
+元アプリのセッションが失効すると購読は無効化される（再ログインして Discord を保存し直す）。
+資格情報（パスワード）は保存しない。
+
+### Cron の CPU 時間
+
+Cloudflare Workers の Cron は **Free で 10 ms / 回**、**Paid かつ間隔 ≥ 1 時間なら最大 15 分 / 回**。
+`fetch` 待ちは CPU に含まれない。`test/cpu-budget.mjs` でパース・差分・封印を測った結果は
+`artifacts/CPU_BUDGET.md`（生データ `artifacts/cpu-budget.json`）。少数購読なら Free でも足り、
+極端な規模（例: 購読 25 × 通知 100）だけ Free を超える見込み。
+
+未読件数のブラウザ側ポーリングは表示中 60 秒・非表示 5 分。初回の観測は基準値にする
+だけで送らない（ログイン直後に既存の未読をまとめて飛ばさない）。バックグラウンド登録時も同様。
+
+Discord の即時中継は `POST /api/notify/discord`（ログイン必須）。
+オープンプロキシにしないため `discord.com` / `discordapp.com` の Webhook 形だけを受け付ける。
 
 ## 構成
 
@@ -119,15 +140,21 @@ Discord へはブラウザから直接飛ばず、`POST /api/notify/discord` が
 | --- | --- |
 | `src/parse.js` | 週報の HTML → JSON。ネットワークに触らない純関数 |
 | `src/parse-pages.js` | 他 5 画面と nav の HTML → JSON |
-| `src/meister.js` | Devise ログイン／サインアウト、HTML 取得 |
+| `src/parse-guard.js` | パース結果が想定どおりかの検査と Discord 本文 |
+| `src/meister.js` | Devise ログイン／サインアウト、HTML 取得、注文作成 |
 | `src/session.js` | セッション Cookie の封印と開封（AES-GCM） |
 | `src/discord.js` | Discord Webhook URL の検証と転送 |
-| `src/index.js` | ルーティング、静的資産の配信 |
+| `src/subscribe.js` | バックグラウンド購読の KV 読み書き |
+| `src/background.js` | Cron から回す未読差分 → Discord |
+| `src/index.js` | ルーティング、静的資産、scheduled、パース異常の通知 |
 | `wrangler.jsonc` | Worker の設定 |
 | `build.sh` | `../fork` から公開するファイルだけ `public/` に揃える |
 | `test/parse.test.mjs` | 週報のパーサを実 HTML で検証 |
 | `test/parse-pages.test.mjs` | 他 5 画面のパーサを実 HTML で検証 |
+| `test/parse-guard.test.mjs` | 想定外 HTML の検出と Discord 本文 |
 | `test/notify.test.mjs` | Discord 中継と通知差分の純関数 |
+| `test/background.test.mjs` | バックグラウンド差分・ペイロードの純関数 |
+| `test/cpu-budget.mjs` | Cron 1 回あたりの CPU 概算（`MATRIX=1` で行列） |
 | `test/api.test.mjs` | 動いているエンドポイントに対して検証 |
 | `test/e2e.py` | ログインから 6 画面・ログアウトまで実ブラウザで通す |
 
@@ -150,21 +177,28 @@ export CLOUDFLARE_ACCOUNT_ID=ca0ec10c7f6f85ea5700ca86e63e580d
 npx wrangler deploy
 ```
 
-秘密は 1 つだけ。
+秘密は次のとおり。
 
 ```bash
 printf '%s' "$(python3 -c 'import secrets;print(secrets.token_urlsafe(32))')" \
   | npx wrangler secret put SESSION_SECRET
+
+# パース異常の運用通知（任意）。利用者の「届け先」とは別。
+printf '%s' 'https://discord.com/api/webhooks/…' \
+  | npx wrangler secret put DISCORD_WEBHOOK
 ```
 
 鍵を差し替えると、既に発行済みの `mms_session` は全て開けなくなり、
 利用者は再ログインになる。漏えいが疑われるときはこれで一括失効できる。
 
+`DISCORD_WEBHOOK` は元アプリの HTML が想定と違うとき（列見出しの変更・パーサ例外など）
+にだけ送る。未設定なら通知を飛ばして API は通常どおり動く。
+
 ## テスト
 
 ```bash
 # パーサ（ネットワーク不要）
-node --test test/parse.test.mjs test/parse-pages.test.mjs
+node --test test/parse.test.mjs test/parse-pages.test.mjs test/parse-guard.test.mjs test/notify.test.mjs
 
 # API。元アプリに実際にログインするので資格情報が必要
 MEISTER_EMAIL=... MEISTER_PASSWORD=... node --test test/api.test.mjs
@@ -221,11 +255,10 @@ Worker を通らない。`run_worker_first` で API だけ先に通す。
 実装（`#report_<id>` `#order_<id>` で行を引く）と列の順序から組み、
 テストでは実 HTML の器に合成した行を差し込んで検証している。
 
-**書き込みはしない。** 本文の自動保存と削除は元アプリに送らない。実データのときは
-本文を読み取り専用にして画面にそう出す。`?demo=1` の同梱データでのみ編集と削除の
-挙動を確かめられる。
-
-**`/orders/new` はフォークしていない。** 注文の作成フォームは元アプリへ案内する。
+**書き込みは注文作成だけ。** 週報の本文の自動保存と削除は元アプリに送らない。
+実データのときは本文を読み取り専用にして画面にそう出す。`?demo=1` の同梱データでのみ
+週報の編集と削除の挙動を確かめられる。注文はパネルから作成でき、Worker が
+`/orders/new` の CSRF トークンを取って元アプリへ POST する。
 
 **TA / 管理者画面はフォークしていない。** 検証に使えたアカウントでは
 `/ta/**` `/admin/**` が `/dashboard` にリダイレクトされるため、実物を見ていない。

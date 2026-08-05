@@ -16,12 +16,27 @@
     "run_worker_first": ["/api/*"]
   },
 
+  "kv_namespaces": [
+    {
+      "binding": "NOTIFY_SUBS",
+      "id": "040feacb2a524a9d89eae06232e51333",
+      "preview_id": "d9d7a7788b56438592fb88056e451fa9"
+    }
+  ],
+
+  // タブを閉じても Discord へ送る。1 時間ごとに購読を見る（即時性は不要）。
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
   }
 
   // 秘密は wrangler secret put で入れる。config には書かない。
-  //   SESSION_SECRET  セッション Cookie の暗号鍵
+  //   SESSION_SECRET   セッション Cookie の暗号鍵（購読レコードの封印にも使う）
+  //   DISCORD_WEBHOOK  パース異常の運用通知先（任意。利用者の届け先とは別）
   // 元アプリの資格情報は Worker に持たない。利用者が自分でログインする。
+  // Discord Webhook はバックグラウンド配信用に KV へ封印して置く（オフで削除）。
 }

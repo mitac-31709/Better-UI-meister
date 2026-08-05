@@ -10,9 +10,8 @@ import { Unauthenticated, api } from './api.js';
 import { DEMO_USER, demoNotifications } from './demo.js';
 import { fmtTime } from './format.js';
 import {
-  badgeLabel, clearState, createWatcher, loadPrefs, showBrowserNotification
+  badgeLabel, clearState, createWatcher, loadPrefs, savePrefs, showBrowserNotification
 } from './notify.js';
-import { openNotifySettings } from './notify-settings.js';
 import { h, panel, wirePanel } from './ui.js';
 
 import * as dashboard from './pages/dashboard.js';
@@ -38,7 +37,6 @@ const el = {
   userName: document.getElementById('user-name'),
   userMeta: document.getElementById('user-meta'),
   logout: document.getElementById('logout'),
-  notifySettings: document.getElementById('notify-settings'),
   navToggle: document.getElementById('nav-toggle'),
   nav: document.getElementById('rail-nav')
 };
@@ -186,16 +184,30 @@ el.signinForm.addEventListener('submit', async (e) => {
 el.logout.addEventListener('click', async () => {
   stopNotifyWatcher();
   clearState();
+  const prefs = loadPrefs();
+  if (prefs.subscriptionId) {
+    try {
+      await api.unsubscribeNotify(prefs.subscriptionId);
+    } catch {
+      // ベストエフォート
+    }
+    savePrefs({ ...prefs, subscriptionId: null, discord: false });
+  }
+
+  // デモモードのログアウトはデモを抜ける。?demo=1 を残すとまた入ってしまう。
+  // 静的配信では boot が ?demo=1 に戻すので、遷移せずログイン画面を出す。
+  if (ctx.demo) {
+    history.replaceState(null, '', '/dashboard');
+    showSignIn(null);
+    return;
+  }
+
   try {
     await api.logout();
   } catch {
     // 元アプリ側のログアウトが失敗しても、こちらのセッションは落とす
   }
-  location.href = keepQuery('/dashboard');
-});
-
-el.notifySettings.addEventListener('click', () => {
-  openNotifySettings({ watcher, isDemo: ctx.demo });
+  location.href = '/dashboard';
 });
 
 // ── 変更通知の監視 ──────────────────────────────────
@@ -219,7 +231,10 @@ const watcher = createWatcher({
       const unread = demoNotifications().notifications.filter((n) => n.read === false).length;
       return { count: unread };
     }
-    return api.unreadCount();
+    const result = await api.unreadCount();
+    // ポーリングのついでに購読の Cookie を更新（タブを閉じたあともしばらく使えるように）
+    refreshBackgroundSubscription();
+    return result;
   },
   notifications: async () => {
     if (ctx.demo) return demoNotifications();
@@ -228,7 +243,6 @@ const watcher = createWatcher({
   showBrowser: showBrowserNotification,
   sendDiscord: async (payload, webhookUrl) => {
     if (ctx.demo) {
-      // デモでも Worker があれば中継を試す。無い静的配信ではブラウザ通知だけ。
       try {
         await api.notifyDiscord(webhookUrl, payload);
       } catch (e) {
@@ -243,9 +257,25 @@ const watcher = createWatcher({
   }
 });
 
+// 通知画面の届け先設定から参照する。
+ctx.watcher = watcher;
+
+/** タブが開いている間、購読の Rails Cookie を書き戻して寿命を延ばす。 */
+async function refreshBackgroundSubscription() {
+  if (ctx.demo) return;
+  const prefs = loadPrefs();
+  if (!prefs.discord || !prefs.subscriptionId) return;
+  try {
+    await api.refreshNotifySubscription(prefs.subscriptionId);
+  } catch {
+    // 失効や欠落は次の保存で作り直す
+  }
+}
+
 function startNotifyWatcher() {
   watcher.stop();
   watcher.start();
+  refreshBackgroundSubscription();
 }
 
 function stopNotifyWatcher() {

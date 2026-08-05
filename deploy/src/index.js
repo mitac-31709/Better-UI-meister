@@ -4,25 +4,36 @@
  * - `DELETE /api/session`  ログアウトする
  * - `GET  /api/me`         ログイン中の利用者
  * - `GET  /api/<page>`     元アプリの画面を JSON にして返す
- * - `POST /api/notify/discord`  利用者の Discord Webhook へ中継（URL は保存しない）
- * - それ以外               `public/` の静的ファイル（フォークの UI）
+ * - `POST /api/orders`     新しい注文を元アプリへ作る
+ * - `POST /api/notify/discord`  即時の Discord 中継
+ * - `POST /api/notify/subscribe`  タブ閉鎖後も Discord へ送る購読を KV に登録
+ * - `DELETE /api/notify/subscribe`  購読を削除
+ * - Cron `0 * * * *`      購読を見て未読を Discord へ送る（1 時間ごと）
  *
- * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で暗号化して
- * 自ドメインの Cookie に入れるだけ（`src/session.js`）。
- * 取得結果もキャッシュしない。利用者ごとの内容なので、Worker に共有で
- * 置くと他人のデータが混ざる。Discord の Webhook URL も同様に保存しない。
+ * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で封印して
+ * 自ドメインの Cookie に入れる（`src/session.js`）。
+ * バックグラウンド配信用に、同じ封印で「Rails Cookie + Webhook URL」を
+ * KV（NOTIFY_SUBS）へ置く。Discord オフまたはログアウトで消す。
+ *
+ * パースで想定外の HTML を見たときは、Cloudflare シークレットの
+ * `DISCORD_WEBHOOK` へ運用向けの通知を送る（利用者の届け先とは別）。
  */
 
+import { runBackgroundNotify } from './background.js';
 import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './discord.js';
-import { ApiError, html, signIn, signOut, unreadCount } from './meister.js';
+import { ApiError, createOrder, html, signIn, signOut, unreadCount } from './meister.js';
 import { parseReportsPage } from './parse.js';
 import {
   parseDashboard, parseEquipments, parseLoans, parseNotifications,
   parseOrders, parseUser
 } from './parse-pages.js';
+import { buildParseAlertPayload, inspectParse } from './parse-guard.js';
 import {
   SESSION_MAX_AGE_MS, clearCookieHeader, currentSession, seal, setCookieHeader
 } from './session.js';
+import {
+  buildSubscription, deleteSubscription, getSubscription, putSubscription
+} from './subscribe.js';
 
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data, null, 2), {
@@ -39,14 +50,79 @@ const unauthorized = () =>
   json({ error: 'ログインしてください', code: 'unauthenticated' }, 401,
     { 'Set-Cookie': clearCookieHeader() });
 
-/** 元アプリの 1 画面を取って JSON にする */
-async function page(cookie, path, parse) {
+/** 同じ path+理由の連続通知を抑える。Isolate 単位のベストエフォート。 */
+const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+const recentAlerts = new Map();
+
+function shouldSkipAlert(key) {
+  const now = Date.now();
+  const last = recentAlerts.get(key) || 0;
+  if (now - last < ALERT_COOLDOWN_MS) return true;
+  recentAlerts.set(key, now);
+  if (recentAlerts.size > 40) {
+    for (const [k, t] of recentAlerts) {
+      if (now - t >= ALERT_COOLDOWN_MS) recentAlerts.delete(k);
+    }
+  }
+  return false;
+}
+
+/** パース異常を DISCORD_WEBHOOK へ送る。失敗しても API 応答は止めない。 */
+async function alertParseAnomaly(env, { path, origin, reasons, html: body, error }) {
+  const webhookRaw = env.DISCORD_WEBHOOK;
+  if (!webhookRaw) return;
+
+  const key = `${path}|${error || ''}|${(reasons || []).join(';')}`;
+  if (shouldSkipAlert(key)) return;
+
+  const validated = validateWebhookUrl(String(webhookRaw));
+  if (!validated.ok) {
+    console.error('DISCORD_WEBHOOK の形が不正:', validated.error);
+    return;
+  }
+
+  const payload = buildParseAlertPayload({ path, origin, reasons, html: body, error });
+  const sanitized = sanitizeDiscordBody(payload);
+  if (!sanitized.ok) {
+    console.error('パース異常の Discord 本文が不正:', sanitized.error);
+    return;
+  }
+
+  try {
+    const result = await forwardDiscord(validated.url, sanitized.body);
+    if (!result.ok) {
+      console.error('パース異常の Discord 送信に失敗:', result.status, result.raw?.slice?.(0, 200));
+    }
+  } catch (e) {
+    console.error('パース異常の Discord 送信で例外:', e.message || e);
+  }
+}
+
+/** 元アプリの 1 画面を取って JSON にする。想定外なら Discord へ知らせる。 */
+async function page(cookie, path, parse, env) {
   const body = await html(cookie, path);
+  const origin = `https://meister.tokyo-ct.org${path}`;
+  let parsed;
+  try {
+    parsed = parse(body);
+  } catch (e) {
+    await alertParseAnomaly(env, {
+      path, origin, reasons: ['パーサが例外を投げた'], html: body, error: e.message || String(e)
+    });
+    throw new ApiError(502, `元アプリの ${path} を読めませんでした（${e.message || e}）`);
+  }
+
+  const check = inspectParse(path, body, parsed);
+  if (!check.ok) {
+    await alertParseAnomaly(env, { path, origin, reasons: check.reasons, html: body });
+  }
+
   return {
     source: 'live',
-    origin: `https://meister.tokyo-ct.org${path}`,
+    origin,
     fetchedAt: new Date().toISOString(),
-    ...parse(body)
+    parseWarning: check.ok ? null : check.reasons,
+    ...parsed
   };
 }
 
@@ -62,7 +138,6 @@ async function handleSessionCreate(request, env) {
   const password = String(body?.password ?? '');
   const cookie = await signIn(email, password);
 
-  // 表示名は元アプリのダッシュボードから読む。こちらで持たない。
   let user = { name: null, badge: null };
   try {
     user = parseUser(await html(cookie, '/dashboard')) || user;
@@ -79,8 +154,6 @@ async function handleSessionCreate(request, env) {
 
 async function handleSessionDelete(request, env) {
   const session = await currentSession(request, env);
-  // 元アプリ側を無効化できたかどうかを応答に載せる。ここが false のまま
-  // 気づかないと、Cookie を持っている相手はログアウト後も使えてしまう。
   const result = session?.cookie ? await signOut(session.cookie) : { ok: true };
   return json({ ok: true, originSignedOut: result.ok, reason: result.reason ?? null },
     200, { 'Set-Cookie': clearCookieHeader() });
@@ -120,6 +193,138 @@ async function handleDiscordNotify(request) {
   return json({ ok: true, discordStatus: result.status });
 }
 
+async function handleOrderCreate(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON の本文が必要です' }, 400);
+  }
+
+  const session = await currentSession(request, env);
+  if (!session) return unauthorized();
+
+  const result = await createOrder(session.cookie, body);
+  const headers = {};
+  if (result.cookie && result.cookie !== session.cookie) {
+    const token = await seal(
+      {
+        cookie: result.cookie,
+        name: session.name,
+        badge: session.badge,
+        exp: Date.now() + SESSION_MAX_AGE_MS
+      },
+      env.SESSION_SECRET
+    );
+    headers['Set-Cookie'] = setCookieHeader(token);
+  }
+
+  return json({
+    ok: true,
+    redirectedTo: result.redirectedTo,
+    productName: String(body?.productName ?? '').trim()
+  }, 201, headers);
+}
+
+/** タブ閉鎖後も Discord へ送る購読を登録 / 更新する。 */
+async function handleSubscribe(request, env, session) {
+  if (!env.NOTIFY_SUBS) {
+    return json({ error: 'バックグラウンド配信が設定されていません' }, 503);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON の本文が必要です' }, 400);
+  }
+
+  const webhook = validateWebhookUrl(body?.webhookUrl);
+  if (!webhook.ok) return json({ error: webhook.error }, 400);
+
+  const existingId = typeof body?.id === 'string' ? body.id.trim() : '';
+  const prev = existingId ? await getSubscription(env, existingId) : null;
+
+  let primed = prev?.primed ?? false;
+  let count = prev?.count ?? 0;
+  let seenIds = prev?.seenIds ?? [];
+  if (!prev) {
+    try {
+      const unread = await unreadCount(session.cookie);
+      count = typeof unread.count === 'number' ? unread.count : 0;
+      const parsed = parseNotifications(await html(session.cookie, '/notifications'));
+      seenIds = (parsed.notifications || [])
+        .map((n) => n.id)
+        .filter((id) => id != null)
+        .map(String)
+        .slice(0, 200);
+      primed = true;
+    } catch {
+      primed = false;
+      count = 0;
+      seenIds = [];
+    }
+  }
+
+  const sub = buildSubscription({
+    id: prev?.id || existingId || undefined,
+    cookie: session.cookie,
+    webhookUrl: webhook.url,
+    prev: { ...prev, primed, count, seenIds }
+  });
+  await putSubscription(env, sub);
+
+  return json({
+    ok: true,
+    id: sub.id,
+    background: true,
+    primed: sub.primed,
+    lastError: sub.lastError
+  });
+}
+
+async function handleUnsubscribe(request, env) {
+  if (!env.NOTIFY_SUBS) return json({ ok: true });
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    // id が無ければ何もしない
+  }
+  const id = typeof body?.id === 'string' ? body.id.trim() : '';
+  if (id) await deleteSubscription(env, id);
+  return json({ ok: true });
+}
+
+/** 開いているタブから Rails Cookie を購読へ書き戻す（寿命を延ばす）。 */
+async function handleSubscribeRefresh(request, env, session) {
+  if (!env.NOTIFY_SUBS) {
+    return json({ error: 'バックグラウンド配信が設定されていません' }, 503);
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON の本文が必要です' }, 400);
+  }
+  const id = typeof body?.id === 'string' ? body.id.trim() : '';
+  if (!id) return json({ error: '購読 id が必要です' }, 400);
+
+  const prev = await getSubscription(env, id);
+  if (!prev) return json({ error: '購読が見つかりません', code: 'missing' }, 404);
+
+  const sub = buildSubscription({
+    id,
+    cookie: session.cookie,
+    webhookUrl: prev.webhookUrl,
+    prev
+  });
+  await putSubscription(env, sub);
+  return json({ ok: true, id: sub.id, disabled: sub.disabled, lastError: sub.lastError });
+}
+
 async function handleApi(request, url, env) {
   const path = url.pathname;
 
@@ -136,11 +341,15 @@ async function handleApi(request, url, env) {
       origin: 'https://meister.tokyo-ct.org',
       sessionSecret: Boolean(env.SESSION_SECRET),
       auth: 'per-user',
-      notify: { discordProxy: true }
+      notify: {
+        discordProxy: true,
+        background: Boolean(env.NOTIFY_SUBS),
+        cron: '0 * * * *',
+        parseAlertWebhook: Boolean(env.DISCORD_WEBHOOK)
+      }
     });
   }
 
-  // Discord 中継はログイン必須。オープンプロキシにしない。
   if (path === '/api/notify/discord') {
     if (request.method !== 'POST') {
       return json({ error: 'POST を使ってください' }, 405, { Allow: 'POST' });
@@ -148,6 +357,20 @@ async function handleApi(request, url, env) {
     const session = await currentSession(request, env);
     if (!session) return unauthorized();
     return handleDiscordNotify(request);
+  }
+
+  if (path === '/api/notify/subscribe') {
+    const session = await currentSession(request, env);
+    if (!session) return unauthorized();
+    if (request.method === 'POST') return handleSubscribe(request, env, session);
+    if (request.method === 'DELETE') return handleUnsubscribe(request, env);
+    if (request.method === 'PATCH') return handleSubscribeRefresh(request, env, session);
+    return json({ error: 'POST / PATCH / DELETE を使ってください' }, 405,
+      { Allow: 'POST, PATCH, DELETE' });
+  }
+
+  if (path === '/api/orders' && request.method === 'POST') {
+    return handleOrderCreate(request, env);
   }
 
   if (request.method !== 'GET') {
@@ -167,7 +390,7 @@ async function handleApi(request, url, env) {
 
   const target = PAGES[path];
   if (!target) return json({ error: 'そのような口はありません' }, 404);
-  return json(await page(session.cookie, target[0], target[1]));
+  return json(await page(session.cookie, target[0], target[1], env));
 }
 
 export default {
@@ -181,14 +404,20 @@ export default {
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 500;
       const payload = { error: e.message || String(e) };
+      if (Array.isArray(e?.details) && e.details.length) payload.details = e.details;
       if (status !== 401) return json(payload, status);
 
       payload.code = 'unauthenticated';
-      // 失効したセッションはブラウザからも落とす。ただしログインの
-      // 入力ミスでは落とさない（開いているセッションを壊さないため）。
       return e.clearSession
         ? json(payload, 401, { 'Set-Cookie': clearCookieHeader() })
         : json(payload, 401);
     }
+  },
+
+  async scheduled(_controller, env, ctx) {
+    ctx.waitUntil((async () => {
+      const summary = await runBackgroundNotify(env);
+      console.log('notify-background', JSON.stringify(summary));
+    })());
   }
 };

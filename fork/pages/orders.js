@@ -5,22 +5,29 @@
  *
  * 週報との違いは 3 つ。
  *  1. 期限が無いので、既定の並びは作成日の新しい順。
- *  2. 書き込み口が無いので、詳細は読み取りだけ。削除も編集も置かない。
- *  3. 「新しい注文」は元アプリの作成画面へ送る。このフォークにフォームは無い。
+ *  2. 詳細は読み取りだけ。削除も編集も置かない。
+ *  3. 「新しい注文」はこのパネルで作る。実データは Worker 経由で元アプリへ POST。
  */
 
 import { api } from '../api.js';
 import { demoOrders } from '../demo.js';
 import { fmtDate, fmtYen } from '../format.js';
-import { dataTable, emptyBlock, h, metaList, panel, statusPill } from '../ui.js';
+import { dataTable, emptyBlock, h, metaList, panel, statusPill, toasts } from '../ui.js';
 
 export const meta = { route: '/orders', nav: '注文', title: '注文' };
 
-const NEW_ORDER_URL = 'https://meister.tokyo-ct.org/orders/new';
 const SORT_KEYS = [
   'product', 'unitPriceValue', 'quantityValue', 'totalValue', 'status', 'createdAt'
 ];
 const state = { q: '', status: 'all', sortKey: 'createdAt', sortDir: 'desc', selectedId: null };
+
+/** 元アプリの `sales_site_controller` と同じ対応。 */
+const SALES_SITES = [
+  { value: 'amazon', label: 'Amazon', shopName: 'Amazon' },
+  { value: 'monotaro', label: 'モノタロウ', shopName: 'モノタロウ' },
+  { value: 'akizuki', label: '秋月電子通商', shopName: '秋月電子通商' },
+  { value: 'other', label: 'その他', shopName: '' }
+];
 
 const numeric = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -31,6 +38,8 @@ export async function load(ctx) {
 export function render(data, ctx) {
   const rows = (data.orders || []).map(normalize);
   const emptyText = data.empty || { title: '注文がありません', body: '' };
+  // デモで追加した行の次の id。実データでは使わない。
+  let nextDemoId = Math.max(0, ...rows.map((o) => o.id || 0)) + 1;
 
   readUrl();
 
@@ -323,26 +332,208 @@ export function render(data, ctx) {
     if (!focus) document.activeElement?.blur?.();
   }
 
-  // 作成フォーム（`/orders/new`）はこのフォークに含めていない。
-  // リンクを死なせるより、どこへ行けば作れるのかをその場で言う。
+  // ── 新しい注文。元アプリの /orders/new と同じ項目 ──
   function openNewOrder() {
+    const errorEl = h('p', { class: 'form-error', id: 'order-form-error', hidden: true });
+    const totalEl = h('span', { class: 'order-total__value', id: 'order-total', text: '¥0' });
+
+    const productInput = h('input', {
+      class: 'input', type: 'text', id: 'order_product_name', name: 'productName',
+      required: true, placeholder: '商品名を入力', autocomplete: 'off'
+    });
+    const amountInput = h('input', {
+      class: 'input', type: 'number', id: 'order_amount', name: 'amount',
+      required: true, step: '1', min: '0', placeholder: '単価を入力',
+      oninput: updateTotal
+    });
+    const quantityInput = h('input', {
+      class: 'input', type: 'number', id: 'order_quantity', name: 'quantity',
+      required: true, step: '1', min: '1', value: '1', placeholder: '数量を入力',
+      oninput: updateTotal
+    });
+    const siteSelect = h('select', {
+      class: 'input select', id: 'order_sales_site_type', name: 'salesSiteType',
+      required: true, onchange: onSiteChange
+    },
+      h('option', { value: '', text: '選択してください' }),
+      SALES_SITES.map((s) => h('option', {
+        value: s.value, selected: s.value === 'amazon' || null, text: s.label
+      })));
+    const shopInput = h('input', {
+      class: 'input', type: 'text', id: 'order_shop_name', name: 'shopName',
+      required: true, value: 'Amazon', readonly: true,
+      placeholder: '販売サイトを選択すると自動入力されます'
+    });
+    const modelInput = h('input', {
+      class: 'input', type: 'text', id: 'order_model_number', name: 'modelNumber',
+      placeholder: '型番を入力', autocomplete: 'off'
+    });
+    const urlInput = h('input', {
+      class: 'input', type: 'url', id: 'order_product_url', name: 'productUrl',
+      placeholder: 'https://…', autocomplete: 'off'
+    });
+    const memoInput = h('textarea', {
+      class: 'input textarea', id: 'order_memo', name: 'memo', rows: 4,
+      placeholder: '追加のメモや仕様（任意）'
+    });
+
+    const submitBtn = h('button', {
+      class: 'btn btn--primary', type: 'button', id: 'panel-submit-order',
+      onclick: () => submitOrder({
+        productInput, amountInput, quantityInput, siteSelect, shopInput,
+        modelInput, urlInput, memoInput, errorEl, submitBtn
+      })
+    }, '注文を作成');
+
+    function updateTotal() {
+      const amount = Number(amountInput.value) || 0;
+      const quantity = Number(quantityInput.value) || 0;
+      totalEl.textContent = `¥${(amount * quantity).toLocaleString('ja-JP')}`;
+    }
+
+    function onSiteChange() {
+      const site = SALES_SITES.find((s) => s.value === siteSelect.value);
+      if (!site) {
+        shopInput.value = '';
+        shopInput.readOnly = true;
+        return;
+      }
+      if (site.value === 'other') {
+        shopInput.readOnly = false;
+        shopInput.value = '';
+        shopInput.placeholder = '販売サイト名を入力してください';
+        shopInput.focus();
+      } else {
+        shopInput.readOnly = true;
+        shopInput.value = site.shopName;
+        shopInput.placeholder = '販売サイトを選択すると自動入力されます';
+      }
+    }
+
+    updateTotal();
+
     panel.open({
       eyebrow: '注文',
       title: '新しい注文',
-      body: h('p', { class: 'disclaimer' },
-        'このフォークは注文の一覧だけを作り直したもので、作成フォームは含めていません。'
-        + 'ここでは注文を作れません。作成は元アプリの /orders/new で行ってください。'
-        + '下のボタンで別のタブに開きます。'),
+      body: [
+        h('p', {
+          class: 'disclaimer',
+          text: ctx.demo
+            ? 'デモモードでは一覧にだけ追加します。元アプリには送りません。'
+            : '入力内容は元アプリの注文として作成されます。'
+        }),
+        errorEl,
+        h('form', {
+          class: 'form-stack', id: 'order-create-form',
+          onsubmit: (e) => {
+            e.preventDefault();
+            submitBtn.click();
+          }
+        },
+          field('order_product_name', '商品名', productInput, true),
+          h('div', { class: 'form-row' },
+            field('order_amount', '単価', amountInput, true),
+            field('order_quantity', '数量', quantityInput, true)),
+          h('div', { class: 'order-total' },
+            h('span', { class: 'order-total__label', text: '合計金額' }),
+            totalEl),
+          field('order_sales_site_type', '販売サイト',
+            h('span', { class: 'select-wrap' }, siteSelect), true),
+          field('order_shop_name', '販売サイト名', shopInput, true),
+          field('order_model_number', '型番', modelInput, false),
+          field('order_product_url', '商品 URL', urlInput, false),
+          field('order_memo', 'メモ', memoInput, false))
+      ],
       actions: [
-        h('a', {
-          class: 'btn btn--primary', id: 'panel-new-order',
-          href: NEW_ORDER_URL, target: '_blank', rel: 'noopener'
-        }, '元アプリで注文を作成'),
+        submitBtn,
         h('button', {
           class: 'btn btn--secondary', type: 'button', id: 'panel-cancel',
           onclick: () => panel.close()
-        }, '閉じる')
+        }, 'キャンセル')
       ]
     });
+  }
+
+  function field(id, label, control, required) {
+    return h('div', { class: 'field' },
+      h('label', { class: 'field__label', for: id },
+        label, required ? h('span', { class: 'field__req', text: '必須' }) : null),
+      control);
+  }
+
+  async function submitOrder(parts) {
+    const {
+      productInput, amountInput, quantityInput, siteSelect, shopInput,
+      modelInput, urlInput, memoInput, errorEl, submitBtn
+    } = parts;
+
+    const showError = (msg) => {
+      errorEl.textContent = msg;
+      errorEl.hidden = false;
+    };
+    errorEl.hidden = true;
+
+    const fields = {
+      productName: productInput.value.trim(),
+      amount: Number(amountInput.value),
+      quantity: Number(quantityInput.value),
+      salesSiteType: siteSelect.value,
+      shopName: shopInput.value.trim(),
+      modelNumber: modelInput.value.trim(),
+      productUrl: urlInput.value.trim(),
+      memo: memoInput.value.trim()
+    };
+
+    if (!fields.productName) return showError('商品名を入力してください');
+    if (!Number.isFinite(fields.amount) || fields.amount < 0 || !Number.isInteger(fields.amount)) {
+      return showError('単価は 0 以上の整数で入力してください');
+    }
+    if (!Number.isFinite(fields.quantity) || fields.quantity < 1 || !Number.isInteger(fields.quantity)) {
+      return showError('数量は 1 以上の整数で入力してください');
+    }
+    if (!fields.salesSiteType) return showError('販売サイトを選んでください');
+    if (!fields.shopName) return showError('販売サイト名を入力してください');
+    if (fields.productUrl && !/^https?:\/\//i.test(fields.productUrl)) {
+      return showError('商品 URL は http(s) で始めてください');
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.dataset.state = 'loading';
+    submitBtn.textContent = '作成中…';
+
+    try {
+      if (ctx.demo) {
+        const created = normalize({
+          id: nextDemoId++,
+          product: fields.productName,
+          unitPrice: `¥${fields.amount.toLocaleString('ja-JP')}`,
+          quantity: String(fields.quantity),
+          total: `¥${(fields.amount * fields.quantity).toLocaleString('ja-JP')}`,
+          status: '未完了',
+          createdAt: fmtDate(new Date().toISOString().slice(0, 10)),
+          createdAtISO: new Date().toISOString().slice(0, 10),
+          unitPriceValue: fields.amount,
+          quantityValue: fields.quantity,
+          totalValue: fields.amount * fields.quantity
+        });
+        rows.unshift(created);
+        panel.close();
+        paint();
+        toasts.push(`「${created.product}」を追加しました（デモ）`);
+        openDetail(created.id);
+        return;
+      }
+
+      await api.createOrder(fields);
+      panel.close();
+      toasts.push(`「${fields.productName}」を作成しました`);
+      // 一覧を元アプリから取り直す。作成直後の id やステータスは HTML からしか分からない。
+      ctx.reload();
+    } catch (e) {
+      showError(e.message || '注文を作成できませんでした');
+      submitBtn.disabled = false;
+      delete submitBtn.dataset.state;
+      submitBtn.textContent = '注文を作成';
+    }
   }
 }

@@ -6,11 +6,15 @@
  *
  * 既読にする口（`PATCH /notifications/:id/mark_as_read`）はこのフォークから
  * 叩いていない。読んだことにする副作用を、表示するだけの画面で起こさない。
+ *
+ * 画面上部に届け先（ブラウザ / Discord）の入口を置く。初回だけ開いて
+ * 機能を見せ、閉じる／保存後は折りたたむ（どちらもオフのままでも可）。
  */
 
 import { api } from '../api.js';
 import { demoNotifications } from '../demo.js';
 import { fmtDate } from '../format.js';
+import { renderNotifySettings } from '../notify-settings.js';
 import { emptyBlock, h, metaList, panel } from '../ui.js';
 
 export const meta = { route: '/notifications', nav: '通知', title: '通知' };
@@ -19,7 +23,7 @@ export async function load(ctx) {
   return ctx.demo ? demoNotifications() : api.notifications();
 }
 
-export function render(data) {
+export function render(data, ctx) {
   const items = (data.notifications || []).map(normalize);
   const unread = typeof data.unreadText === 'string' ? data.unreadText.trim() : '';
   const empty = data.empty || {};
@@ -29,12 +33,16 @@ export function render(data) {
       h('div', {},
         h('h1', { class: 'page-head__title', text: data.heading || meta.title }),
         unread ? h('p', { class: 'page-head__lede', text: unread }) : null)),
-    items.length
-      ? h('div', { class: 'itemlist' }, items.map(row))
-      : emptyBlock({
-        title: empty.title || '通知はありません',
-        body: empty.body || '新しい通知が届くとここに表示されます。'
-      }));
+    ctx?.watcher
+      ? renderNotifySettings({ watcher: ctx.watcher, isDemo: ctx.demo })
+      : null,
+    h('section', { class: 'notify-list', 'aria-label': '通知一覧' },
+      items.length
+        ? h('div', { class: 'itemlist' }, items.map(row))
+        : emptyBlock({
+          title: empty.title || '通知はありません',
+          body: empty.body || '新しい通知が届くとここに表示されます。'
+        })));
 }
 
 function normalize(n) {

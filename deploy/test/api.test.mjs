@@ -68,6 +68,8 @@ test('/api/health は資格情報を持たず利用者ごとの認証だと報�
   assert.equal(body.auth, 'per-user');
   assert.equal(body.sessionSecret, true, 'SESSION_SECRET が未設定');
   assert.equal(body.notify?.discordProxy, true, 'Discord 中継の印が無い');
+  assert.equal(typeof body.notify?.parseAlertWebhook, 'boolean',
+    'パース異常通知 Webhook の有無が無い');
   assert.equal(body.credentials, undefined,
     'Worker が元アプリの資格情報を持ってしまっている');
 });
@@ -221,11 +223,35 @@ test('/api/notify/discord 以外のメソッドは 405', async () => {
   assert.equal(res.headers.get('allow'), 'POST');
 });
 
-test('知らない口は 404、取得口に POST は 405', async () => {
+test('知らない口は 404、週報への POST は 405、注文への不正メソッドは 405', async () => {
   assert.equal((await get('/api/nope')).status, 404);
   const posted = await get('/api/reports', { method: 'POST' });
   assert.equal(posted.status, 405);
   assert.equal(posted.headers.get('allow'), 'GET');
+  const putOrders = await get('/api/orders', { method: 'PUT' });
+  assert.equal(putOrders.status, 405);
+});
+
+test('/api/orders への POST はログイン必須', async () => {
+  const res = await getNoAuth('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      productName: 'x', amount: 1, quantity: 1,
+      salesSiteType: 'amazon', shopName: 'Amazon'
+    })
+  });
+  assert.equal(res.status, 401);
+});
+
+test('/api/orders への POST は不正な本文を 400 で拒む', async () => {
+  const res = await get('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ productName: '', amount: 1, quantity: 1 })
+  });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /商品名|販売サイト/);
 });
 
 test('/api/session は POST と DELETE 以外を拒む', async () => {

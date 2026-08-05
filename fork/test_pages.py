@@ -42,7 +42,8 @@ SETUP = """
       demo,
       today: new Date('%s' + 'T00:00:00'),
       navigate() {},
-      reload() {}
+      reload() {},
+      watcher: { sendTest: async () => [], verifyDiscord: async () => [] }
     };
     document.getElementById('view').replaceChildren(m.render(data, ctx));
     return { meta: m.meta };
@@ -104,7 +105,38 @@ def check_notifications(page) -> None:
     check(page.locator("#view .empty").count() == 1, "通知の空状態が出ない")
     check(page.inner_text("#view .empty__title") == empty["title"], "空状態の見出しが違う")
     check(page.inner_text("#view .empty__body") == empty["body"], "空状態の本文が違う")
-    print("  通知: read=null / unreadText=null / at=null / 0 件")
+    check(page.locator("#notify-settings").count() == 1, "届け先セクションが出ない")
+    check("届け先" in page.inner_text("#notify-settings"), "届け先の見出しが無い")
+    # 初回（intro 未記録）は開いて機能を見せる
+    page.evaluate("() => localStorage.removeItem('mms.notify.introSeen.v1')")
+    page.evaluate("() => localStorage.removeItem('mms.notify.v1')")
+    render(page, "notifications", wrap({
+        "heading": "通知", "unreadText": None, "empty": empty, "notifications": []
+    }))
+    check(page.locator("#notify-settings-panel").is_visible(),
+          "初回なのに届け先フォームが閉じている")
+    check(page.inner_text("#notify-settings-toggle") == "閉じる",
+          "初回のトグル文言が『閉じる』ではない")
+    limits = page.inner_text("#notify-browser-limits")
+    check("ブラウザ通知の制限" in limits, "ブラウザ通知の制限見出しが無い")
+    check("タブ" in limits and "閉じる" in limits, "ブラウザ通知の制限本文が足りない")
+    # 閉じると「見た」と覚え、どちらもオフのままでも次回は折りたたみ
+    page.locator("#notify-settings-toggle").click()
+    check(page.locator("#notify-settings-panel").is_hidden(),
+          "閉じても届け先フォームが開いたまま")
+    check(page.evaluate("() => localStorage.getItem('mms.notify.introSeen.v1')") == "1",
+          "閉じたあと introSeen が残らない")
+    render(page, "notifications", wrap({
+        "heading": "通知", "unreadText": None, "empty": empty, "notifications": []
+    }))
+    check(page.locator("#notify-settings-panel").is_hidden(),
+          "初回を閉じたあとも届け先フォームが開いている")
+    check(page.inner_text("#notify-settings-toggle") == "設定する",
+          "2 回目のトグル文言が『設定する』ではない")
+    page.locator("#notify-settings-toggle").click()
+    check(page.locator("#notify-settings-panel").is_visible(),
+          "設定するを押しても届け先フォームが開かない")
+    print("  通知: read=null / unreadText=null / at=null / 0 件 / 届け先初回のみオープン")
 
 
 # ── 機材 ───────────────────────────────────────────

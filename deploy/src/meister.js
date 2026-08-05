@@ -14,11 +14,13 @@ const UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Geck
 
 export class ApiError extends Error {
   /** clearSession: この 401 でブラウザの Cookie も落とすか。
-   *  資格情報の入力ミスで既存のセッションを壊さないため、既定は false。 */
-  constructor(status, message, { clearSession = false } = {}) {
+   *  資格情報の入力ミスで既存のセッションを壊さないため、既定は false。
+   *  details: 422 のときなど、画面に並べる追加の文言。 */
+  constructor(status, message, { clearSession = false, details = null } = {}) {
     super(message);
     this.status = status;
     this.clearSession = clearSession;
+    this.details = details;
   }
 }
 
@@ -199,4 +201,122 @@ export async function unreadCount(cookie) {
   } catch {
     throw new ApiError(502, '未読通知数の応答が JSON ではありません');
   }
+}
+
+const SALES_SITE_TYPES = new Set(['amazon', 'monotaro', 'akizuki', 'other']);
+
+/** Rails のフォームエラーを拾う。実物の失敗画面は見ていないので、
+ *  よくある `#error_explanation` / `.field_with_errors` / flash を見る。 */
+export function parseFormErrors(html) {
+  const errors = [];
+  const block = html.match(/id="error_explanation"[^>]*>([\s\S]*?)<\/div>/i)
+    || html.match(/class="[^"]*error_explanation[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+  if (block) {
+    const liRe = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
+    let m;
+    while ((m = liRe.exec(block[1]))) {
+      const msg = textFromHtml(m[1]);
+      if (msg) errors.push(msg);
+    }
+  }
+  const alert = html.match(/class="[^"]*(?:alert|flash)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|p)>/i);
+  if (alert) {
+    const msg = textFromHtml(alert[1]);
+    if (msg && !errors.includes(msg)) errors.push(msg);
+  }
+  return errors;
+}
+
+function textFromHtml(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 注文を元アプリへ作る。フォームは `/orders/new` の authenticity_token を使う。 */
+export async function createOrder(cookie, fields) {
+  const productName = String(fields?.productName ?? '').trim();
+  const amount = Number(fields?.amount);
+  const quantity = Number(fields?.quantity);
+  const salesSiteType = String(fields?.salesSiteType ?? '').trim();
+  const shopName = String(fields?.shopName ?? '').trim();
+  const modelNumber = String(fields?.modelNumber ?? '').trim();
+  const productUrl = String(fields?.productUrl ?? '').trim();
+  const memo = String(fields?.memo ?? '').trim();
+
+  if (!productName) throw new ApiError(400, '商品名を入力してください');
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isInteger(amount)) {
+    throw new ApiError(400, '単価は 0 以上の整数で入力してください');
+  }
+  if (!Number.isFinite(quantity) || quantity < 1 || !Number.isInteger(quantity)) {
+    throw new ApiError(400, '数量は 1 以上の整数で入力してください');
+  }
+  if (!SALES_SITE_TYPES.has(salesSiteType)) {
+    throw new ApiError(400, '販売サイトを選んでください');
+  }
+  if (!shopName) throw new ApiError(400, '販売サイト名を入力してください');
+  if (productUrl && !/^https?:\/\//i.test(productUrl)) {
+    throw new ApiError(400, '商品 URL は http(s) で始めてください');
+  }
+
+  const formPage = await origin('/orders/new', { headers: { Accept: 'text/html' } }, cookie);
+  const formHtml = await formPage.text();
+  if (formPage.status !== 200 || looksLikeSignIn(formHtml)) {
+    throw new ApiError(401, 'ログインの有効期限が切れました。もう一度ログインしてください。',
+      { clearSession: true });
+  }
+  const token = authenticityToken(formHtml);
+  if (!token) throw new ApiError(502, '注文フォームの authenticity_token が見つかりません');
+
+  // CSRF は応答で返った Cookie と対なので、更新されていればそちらを使う。
+  const fresh = sessionCookieFrom(formPage) || cookie;
+
+  const body = new URLSearchParams({
+    authenticity_token: token,
+    'order[product_name]': productName,
+    'order[amount]': String(amount),
+    'order[quantity]': String(quantity),
+    'order[sales_site_type]': salesSiteType,
+    'order[shop_name]': shopName,
+    'order[model_number]': modelNumber,
+    'order[product_url]': productUrl,
+    'order[memo]': memo,
+    commit: '注文を作成'
+  });
+
+  const posted = await origin('/orders', {
+    method: 'POST',
+    body: body.toString(),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'text/html',
+      Origin: ORIGIN,
+      Referer: `${ORIGIN}/orders/new`
+    }
+  }, fresh);
+
+  if (posted.status >= 300 && posted.status < 400) {
+    const location = posted.headers.get('Location') || '';
+    return {
+      ok: true,
+      redirectedTo: location || '/orders',
+      cookie: sessionCookieFrom(posted) || fresh
+    };
+  }
+
+  const htmlBody = await posted.text();
+  if (looksLikeSignIn(htmlBody)) {
+    throw new ApiError(401, 'ログインの有効期限が切れました。もう一度ログインしてください。',
+      { clearSession: true });
+  }
+
+  if (posted.status === 422 || posted.status === 200) {
+    const errors = parseFormErrors(htmlBody);
+    throw new ApiError(422, errors[0] || '注文を作成できませんでした', {
+      details: errors
+    });
+  }
+
+  throw new ApiError(502, `元アプリの注文作成が ${posted.status} を返しました`);
 }

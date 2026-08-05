@@ -162,9 +162,45 @@ describe('build payloads', () => {
   });
 });
 
+describe('verifyDiscord', () => {
+  test('Webhook が空なら拒む', async () => {
+    const { createWatcher } = await import(notifyUrl);
+    const watcher = createWatcher({
+      getPrefs: () => ({ browser: false, discord: true, webhookUrl: '' }),
+      sendDiscord: async () => {},
+      unreadCount: async () => ({ count: 0 }),
+      notifications: async () => ({ notifications: [] })
+    });
+    await assert.rejects(() => watcher.verifyDiscord(''), /Webhook URL/);
+  });
+
+  test('連携確認のペイロードを Discord へ送る', async () => {
+    const { createWatcher } = await import(notifyUrl);
+    const sent = [];
+    const watcher = createWatcher({
+      origin: 'https://example.test',
+      getPrefs: () => ({ browser: false, discord: true, webhookUrl: GOOD_HOOK }),
+      sendDiscord: async (payload, url) => { sent.push({ payload, url }); },
+      unreadCount: async () => ({ count: 0 }),
+      notifications: async () => ({ notifications: [] })
+    });
+    await watcher.verifyDiscord(GOOD_HOOK);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].url, GOOD_HOOK);
+    assert.match(sent[0].payload.embeds[0].title, /Discord 連携/);
+  });
+});
+
 describe('公開ファイルに届け先が入っている', () => {
-  test('index.html に届け先ボタンがある', () => {
+  test('通知画面モジュールが届け先設定を取り込む', () => {
+    const page = readFileSync(join(here, '../../fork/pages/notifications.js'), 'utf8');
+    assert.match(page, /renderNotifySettings/);
+    assert.match(page, /届け先/);
+  });
+
+  test('レールに届け先の別リンクは置かない', () => {
     const html = readFileSync(join(here, '../../fork/index.html'), 'utf8');
-    assert.match(html, /id="notify-settings"/);
+    assert.doesNotMatch(html, /id="notify-settings"/);
+    assert.match(html, /data-route="\/notifications"/);
   });
 });

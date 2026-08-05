@@ -187,12 +187,108 @@ button { font: inherit; color: inherit; }
   text-align: center;
 }
 
-/* 通知の届け先。チェックはスイッチに見せるが、操作は標準の checkbox。 */
+/* 通知の届け先。初回だけ開き、閉じる／保存後は折りたたみ。
+   チェックはスイッチに見せるが、操作は標準の checkbox。 */
+.notify-delivery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.notify-delivery__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.notify-delivery__intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.notify-delivery__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-ink);
+}
+.notify-delivery__summary {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+.notify-delivery__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-top: var(--space-2xs);
+  border-top: var(--rule-fine) solid var(--color-rule);
+}
+.notify-delivery__panel[hidden] {
+  display: none;
+}
+.notify-delivery__lede {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+  max-width: 40rem;
+}
+.notify-limits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  max-width: 40rem;
+}
+.notify-limits__title {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.notify-limits__list {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+}
+.notify-limits__list li + li {
+  margin-top: var(--space-3xs);
+}
+.notify-list { display: flex; flex-direction: column; }
+.notify-delivery + .notify-list { margin-top: var(--space-lg); }
 .notify-settings {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  margin-top: var(--space-md);
+  padding-top: var(--space-2xs);
+}
+.notify-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding-top: var(--space-2xs);
+}
+.notify-settings__error {
+  margin: 0;
+  color: var(--color-warn);
+  font-size: var(--text-sm);
+}
+.notify-settings__ok {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+}
+.btn--compact {
+  min-height: calc(var(--touch-min) - 0.25rem);
+  padding-inline: var(--space-sm);
+  font-size: var(--text-sm);
 }
 .switch {
   position: relative;
@@ -462,6 +558,63 @@ kbd {
   background: var(--color-paper-2);
   color: var(--color-ink-2);
   cursor: not-allowed;
+}
+
+/* ── パネル内の作成フォーム（注文） ── */
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+@media (max-width: 480px) {
+  .form-row { grid-template-columns: 1fr; }
+}
+.form-stack .field { width: 100%; }
+.form-stack .input,
+.form-stack .select-wrap { width: 100%; }
+.field__req {
+  margin-left: var(--space-2xs);
+  color: var(--color-warn);
+  font-size: var(--text-2xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.form-error {
+  margin: 0;
+  padding: var(--space-sm);
+  border: var(--rule-fine) solid var(--color-warn);
+  border-radius: var(--radius-input);
+  background: color-mix(in srgb, var(--color-warn) 12%, var(--color-paper));
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+}
+.order-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-fine) solid var(--color-rule);
+  border-radius: var(--radius-input);
+  background: var(--color-paper-2);
+}
+.order-total__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.order-total__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
 }
 
 /* ── セグメント：ラジオは通常フローに置く。position:absolute; top:0

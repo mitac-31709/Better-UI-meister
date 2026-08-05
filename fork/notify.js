@@ -1,7 +1,8 @@
 /* 変更通知の届け先。
  *
  * 元アプリの未読件数が増えたら、ブラウザの Notification と Discord Webhook へ
- * 届ける。Webhook URL は端末の localStorage にだけ置き、Worker には保存しない。
+ * 届ける。ブラウザ側の設定は localStorage。Discord のバックグラウンド配信は
+ * Worker の KV 購読（封印したセッション + Webhook）でタブ閉鎖後も動く。
  *
  * 初回の観測は基準値にするだけで送らない。ログイン直後に既存の未読を
  * まとめて飛ばさないため。
@@ -9,6 +10,8 @@
 
 const PREFS_KEY = 'mms.notify.v1';
 const STATE_KEY = 'mms.notify.state.v1';
+/** 届け先フォームを初回だけ開いたことを覚える。 */
+const INTRO_KEY = 'mms.notify.introSeen.v1';
 
 /** 表示中は 60 秒、隠れているときは 5 分。元アプリの 5 分ポーリングを下限に。 */
 export const POLL_VISIBLE_MS = 60_000;
@@ -20,7 +23,8 @@ export const DISCORD_COLOR = 0x2f6fed;
 export const DEFAULT_PREFS = Object.freeze({
   browser: false,
   discord: false,
-  webhookUrl: ''
+  webhookUrl: '',
+  subscriptionId: null
 });
 
 export function loadPrefs(storage = localStorage) {
@@ -31,7 +35,10 @@ export function loadPrefs(storage = localStorage) {
     return {
       browser: Boolean(parsed?.browser),
       discord: Boolean(parsed?.discord),
-      webhookUrl: typeof parsed?.webhookUrl === 'string' ? parsed.webhookUrl : ''
+      webhookUrl: typeof parsed?.webhookUrl === 'string' ? parsed.webhookUrl : '',
+      subscriptionId: typeof parsed?.subscriptionId === 'string' && parsed.subscriptionId
+        ? parsed.subscriptionId
+        : null
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -42,10 +49,30 @@ export function savePrefs(prefs, storage = localStorage) {
   const next = {
     browser: Boolean(prefs.browser),
     discord: Boolean(prefs.discord),
-    webhookUrl: typeof prefs.webhookUrl === 'string' ? prefs.webhookUrl.trim() : ''
+    webhookUrl: typeof prefs.webhookUrl === 'string' ? prefs.webhookUrl.trim() : '',
+    subscriptionId: typeof prefs.subscriptionId === 'string' && prefs.subscriptionId
+      ? prefs.subscriptionId
+      : null
   };
   storage.setItem(PREFS_KEY, JSON.stringify(next));
   return next;
+}
+
+/** 届け先の説明を一度でも見たか（閉じる／保存で true）。 */
+export function hasSeenDeliveryIntro(storage = localStorage) {
+  try {
+    return storage.getItem(INTRO_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markDeliveryIntroSeen(storage = localStorage) {
+  try {
+    storage.setItem(INTRO_KEY, '1');
+  } catch {
+    // private mode などでは覚えられないが、操作自体は続行する
+  }
 }
 
 export function loadState(storage = sessionStorage) {
@@ -292,7 +319,7 @@ export function createWatcher(deps) {
       }
     },
     /** 設定画面の「テスト送信」用。基準値は動かさない。 */
-    async sendTest(sample) {
+    async sendTest(sample, { browser = true, discord = true } = {}) {
       const prefs = deps.getPrefs();
       const items = sample || [{
         id: 'test',
@@ -301,14 +328,33 @@ export function createWatcher(deps) {
         atISO: new Date().toISOString(),
         read: false
       }];
-      if (prefs.browser) {
+      if (browser && prefs.browser) {
         for (const item of items) deps.showBrowser?.(item);
       }
-      if (prefs.discord && prefs.webhookUrl) {
+      if (discord && prefs.discord && prefs.webhookUrl) {
         await deps.sendDiscord(buildDiscordPayload(items, {
           origin: deps.origin || ''
         }), prefs.webhookUrl);
       }
+      return items;
+    },
+    /**
+     * Discord 連携の確認。指定 URL へテストを送り、失敗したら例外を投げる。
+     * 保存前に呼び、届くこと確認できてから設定を残す。
+     */
+    async verifyDiscord(webhookUrl) {
+      const url = typeof webhookUrl === 'string' ? webhookUrl.trim() : '';
+      if (!url) throw new Error('Discord の Webhook URL が必要です。');
+      const items = [{
+        id: 'discord-verify',
+        title: 'Discord 連携の確認',
+        body: 'Meister からの通知がこのチャンネルに届いています。このメッセージが見えていれば連携は成功です。',
+        atISO: new Date().toISOString(),
+        read: false
+      }];
+      await deps.sendDiscord(buildDiscordPayload(items, {
+        origin: deps.origin || ''
+      }), url);
       return items;
     },
     tick

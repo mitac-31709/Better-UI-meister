@@ -1,0 +1,197 @@
+/* パーサの結果が「想定どおりか」を見る。
+ *
+ * 元アプリの HTML は Rails の画面なので、UI が変わると列見出しや器の形が
+ * いきなり変わる。パーサは正規表現なので、壊れた HTML でも例外を投げずに
+ * 空配列を返すことがある。その「静かに壊れる」のを拾うのがここ。
+ *
+ * 想定は clone/site/auth で検証できた形（列見出し・見出し文言）。
+ * 想定外なら理由を返して呼び出し側が Discord へ送る。
+ */
+
+/** 画面ごとの想定。実 HTML で確認できたものだけ。 */
+export const PAGE_EXPECTATIONS = {
+  '/dashboard': {
+    kind: 'dashboard',
+    heading: 'ダッシュボード'
+  },
+  '/reports': {
+    kind: 'table',
+    columns: ['タイトル', '期間', 'ステータス', '期限', '作成日'],
+    itemsKey: 'reports'
+  },
+  '/orders': {
+    kind: 'table',
+    columns: ['商品', '単価', '数量', '合計', 'ステータス', '作成日'],
+    itemsKey: 'orders'
+  },
+  '/equipments': {
+    kind: 'list',
+    heading: '利用可能な機材',
+    itemsKey: 'equipments'
+  },
+  '/loans': {
+    kind: 'loans',
+    heading: '機材貸出',
+    sectionTitles: ['申請中', '貸出中']
+  },
+  '/notifications': {
+    kind: 'list',
+    heading: '通知',
+    itemsKey: 'notifications'
+  }
+};
+
+/**
+ * HTML とパース結果を見て、想定外なら { ok: false, reasons } を返す。
+ * パース自体が例外を投げた場合は呼び出し側で catch して扱う。
+ */
+export function inspectParse(path, html, parsed) {
+  const reasons = [];
+  const expect = PAGE_EXPECTATIONS[path];
+
+  if (typeof html !== 'string' || !html.trim()) {
+    reasons.push('HTML が空');
+    return { ok: false, reasons };
+  }
+
+  if (html.length < 200) {
+    reasons.push(`HTML が短すぎる（${html.length} 文字）`);
+  }
+
+  if (!/<main\b/i.test(html) && !/<body\b/i.test(html)) {
+    reasons.push('<main> も <body> も無い');
+  }
+
+  // ログイン画面は meister.html() が先に弾く想定。ここまで来たら想定外。
+  if (/name="user\[password\]"/.test(html) || /action="\/users\/sign_in"/.test(html)) {
+    reasons.push('ログイン画面の HTML が返ってきた');
+  }
+
+  if (!expect) {
+    return reasons.length ? { ok: false, reasons } : { ok: true, reasons: [] };
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    reasons.push('パース結果がオブジェクトではない');
+    return { ok: false, reasons };
+  }
+
+  switch (expect.kind) {
+    case 'dashboard':
+      inspectDashboard(expect, parsed, reasons);
+      break;
+    case 'table':
+      inspectTable(expect, parsed, reasons);
+      break;
+    case 'list':
+      inspectList(expect, parsed, reasons);
+      break;
+    case 'loans':
+      inspectLoans(expect, parsed, reasons);
+      break;
+    default:
+      reasons.push(`未知の kind: ${expect.kind}`);
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
+function inspectDashboard(expect, parsed, reasons) {
+  if (parsed.heading !== expect.heading) {
+    reasons.push(`見出しが「${expect.heading}」ではない（得た値: ${JSON.stringify(parsed.heading)}）`);
+  }
+}
+
+function inspectTable(expect, parsed, reasons) {
+  const labels = Array.isArray(parsed.columns)
+    ? parsed.columns.map((c) => c?.label).filter(Boolean)
+    : [];
+
+  if (!labels.length) {
+    reasons.push('列見出しが取れない');
+  } else if (labels.join('\0') !== expect.columns.join('\0')) {
+    reasons.push(
+      `列見出しが想定と違う（想定: ${expect.columns.join(' / ')}、得た値: ${labels.join(' / ')}）`
+    );
+  }
+
+  const items = parsed[expect.itemsKey];
+  if (!Array.isArray(items)) {
+    reasons.push(`${expect.itemsKey} が配列ではない`);
+    return;
+  }
+
+  for (const [i, row] of items.entries()) {
+    if (!row || typeof row !== 'object') {
+      reasons.push(`${expect.itemsKey}[${i}] がオブジェクトではない`);
+      continue;
+    }
+    if (Array.isArray(row.cells) && labels.length && row.cells.length !== labels.length) {
+      reasons.push(
+        `${expect.itemsKey}[${i}] のセル数が列数と違う`
+        + `（列 ${labels.length}・セル ${row.cells.length}）`
+      );
+    }
+  }
+}
+
+function inspectList(expect, parsed, reasons) {
+  if (parsed.heading !== expect.heading) {
+    reasons.push(`見出しが「${expect.heading}」ではない（得た値: ${JSON.stringify(parsed.heading)}）`);
+  }
+  if (!Array.isArray(parsed[expect.itemsKey])) {
+    reasons.push(`${expect.itemsKey} が配列ではない`);
+  }
+}
+
+function inspectLoans(expect, parsed, reasons) {
+  if (parsed.heading !== expect.heading) {
+    reasons.push(`見出しが「${expect.heading}」ではない（得た値: ${JSON.stringify(parsed.heading)}）`);
+  }
+  if (!Array.isArray(parsed.sections)) {
+    reasons.push('sections が配列ではない');
+    return;
+  }
+  const titles = parsed.sections.map((s) => s?.title).filter(Boolean);
+  for (const want of expect.sectionTitles) {
+    if (!titles.includes(want)) {
+      reasons.push(`貸出の節「${want}」が無い（得た値: ${titles.join(' / ') || 'なし'}）`);
+    }
+  }
+}
+
+/** Discord に載せる HTML の抜粋。秘密や Cookie は出さない。 */
+export function htmlSnippet(html, limit = 900) {
+  if (typeof html !== 'string') return '';
+  const cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/authenticity_token"\s+value="[^"]+"/gi, 'authenticity_token" value="[redacted]"')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length <= limit ? cleaned : `${cleaned.slice(0, limit)}…`;
+}
+
+/** パース異常の Discord 本文。 */
+export function buildParseAlertPayload({ path, origin, reasons, html, error }) {
+  const lines = [
+    path ? `path: \`${path}\`` : null,
+    origin ? `origin: ${origin}` : null,
+    error ? `exception: ${String(error).slice(0, 500)}` : null,
+    reasons?.length ? `reasons:\n${reasons.map((r) => `• ${r}`).join('\n')}` : null
+  ].filter(Boolean);
+
+  const snippet = htmlSnippet(html);
+  return {
+    username: 'Meister Fork Parser',
+    embeds: [{
+      title: 'HTML パースで予期せぬデータ',
+      description: [
+        lines.join('\n'),
+        snippet ? `\nHTML 抜粋:\n\`\`\`\n${snippet.slice(0, 800)}\n\`\`\`` : null
+      ].filter(Boolean).join('\n'),
+      color: 0xc4552d,
+      timestamp: new Date().toISOString(),
+      footer: { text: 'DISCORD_WEBHOOK · meister-reports-fork' }
+    }]
+  };
+}

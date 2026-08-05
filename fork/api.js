@@ -41,10 +41,37 @@ export const api = {
   notifications: () => request('/api/notifications'),
   unreadCount: () => request('/api/notifications/unread_count'),
 
-  /** Discord Incoming Webhook へ Worker 経由で送る。URL は Worker に残さない。 */
+  /** Discord Incoming Webhook へ Worker 経由で送る。即時中継（URL は残さない）。 */
   notifyDiscord: (webhookUrl, payload) => request('/api/notify/discord', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ webhookUrl, payload })
+  }),
+
+  /** タブ閉鎖後も Discord へ送る購読を登録する（Webhook とセッションを KV に封印）。 */
+  subscribeNotify: (webhookUrl, id = null) => request('/api/notify/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhookUrl, id })
+  }),
+
+  /** 開いている間に Rails Cookie を購読へ書き戻す。 */
+  refreshNotifySubscription: (id) => request('/api/notify/subscribe', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  }),
+
+  unsubscribeNotify: (id) => request('/api/notify/subscribe', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id })
+  }),
+
+  /** 元アプリへ新しい注文を作る。Worker が Devise セッションで中継する。 */
+  createOrder: (fields) => request('/api/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(fields)
   })
 };
