@@ -67,6 +67,7 @@ test('/api/health は資格情報を持たず利用者ごとの認証だと報�
   assert.equal(body.ok, true);
   assert.equal(body.auth, 'per-user');
   assert.equal(body.sessionSecret, true, 'SESSION_SECRET が未設定');
+  assert.equal(body.notify?.discordProxy, true, 'Discord 中継の印が無い');
   assert.equal(body.credentials, undefined,
     'Worker が元アプリの資格情報を持ってしまっている');
 });
@@ -187,6 +188,37 @@ test('/api/notifications', async () => {
 test('/api/notifications/unread_count は元アプリの JSON をそのまま通す', async () => {
   const body = await (await get('/api/notifications/unread_count')).json();
   assert.equal(typeof body.count, 'number');
+});
+
+test('/api/notify/discord はセッション無しだと 401', async () => {
+  const res = await getNoAuth('/api/notify/discord', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      webhookUrl: 'https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwx-yz_ABCDE',
+      payload: { content: 'x' }
+    })
+  });
+  assert.equal(res.status, 401);
+});
+
+test('/api/notify/discord は不正な Webhook を 400 で拒む', async () => {
+  const res = await get('/api/notify/discord', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      webhookUrl: 'https://example.com/hooks/1',
+      payload: { content: 'x' }
+    })
+  });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /Discord/);
+});
+
+test('/api/notify/discord 以外のメソッドは 405', async () => {
+  const res = await get('/api/notify/discord');
+  assert.equal(res.status, 405);
+  assert.equal(res.headers.get('allow'), 'POST');
 });
 
 test('知らない口は 404、取得口に POST は 405', async () => {

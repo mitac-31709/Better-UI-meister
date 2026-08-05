@@ -4,14 +4,16 @@
  * - `DELETE /api/session`  ログアウトする
  * - `GET  /api/me`         ログイン中の利用者
  * - `GET  /api/<page>`     元アプリの画面を JSON にして返す
+ * - `POST /api/notify/discord`  利用者の Discord Webhook へ中継（URL は保存しない）
  * - それ以外               `public/` の静的ファイル（フォークの UI）
  *
  * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で暗号化して
  * 自ドメインの Cookie に入れるだけ（`src/session.js`）。
  * 取得結果もキャッシュしない。利用者ごとの内容なので、Worker に共有で
- * 置くと他人のデータが混ざる。
+ * 置くと他人のデータが混ざる。Discord の Webhook URL も同様に保存しない。
  */
 
+import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './discord.js';
 import { ApiError, html, signIn, signOut, unreadCount } from './meister.js';
 import { parseReportsPage } from './parse.js';
 import {
@@ -93,6 +95,31 @@ const PAGES = {
   '/api/notifications': ['/notifications', parseNotifications]
 };
 
+async function handleDiscordNotify(request) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON の本文が必要です' }, 400);
+  }
+
+  const webhook = validateWebhookUrl(body?.webhookUrl);
+  if (!webhook.ok) return json({ error: webhook.error }, 400);
+
+  const payload = sanitizeDiscordBody(body?.payload ?? body);
+  if (!payload.ok) return json({ error: payload.error }, 400);
+
+  const result = await forwardDiscord(webhook.url, payload.body);
+  if (!result.ok) {
+    return json({
+      error: 'Discord への送信に失敗しました',
+      discordStatus: result.status,
+      discord: result.body
+    }, 502);
+  }
+  return json({ ok: true, discordStatus: result.status });
+}
+
 async function handleApi(request, url, env) {
   const path = url.pathname;
 
@@ -108,8 +135,19 @@ async function handleApi(request, url, env) {
       ok: true,
       origin: 'https://meister.tokyo-ct.org',
       sessionSecret: Boolean(env.SESSION_SECRET),
-      auth: 'per-user'
+      auth: 'per-user',
+      notify: { discordProxy: true }
     });
+  }
+
+  // Discord 中継はログイン必須。オープンプロキシにしない。
+  if (path === '/api/notify/discord') {
+    if (request.method !== 'POST') {
+      return json({ error: 'POST を使ってください' }, 405, { Allow: 'POST' });
+    }
+    const session = await currentSession(request, env);
+    if (!session) return unauthorized();
+    return handleDiscordNotify(request);
   }
 
   if (request.method !== 'GET') {

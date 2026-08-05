@@ -11,7 +11,7 @@ rm -rf "$out"
 mkdir -p "$out/pages"
 
 for f in index.html tokens.css app.css favicon.svg \
-         app.js api.js ui.js format.js demo.js; do
+         app.js api.js ui.js format.js demo.js notify.js notify-settings.js; do
   cp "$src/$f" "$out/$f"
 done
 

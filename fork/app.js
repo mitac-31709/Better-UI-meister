@@ -9,6 +9,10 @@
 import { Unauthenticated, api } from './api.js';
 import { DEMO_USER, demoNotifications } from './demo.js';
 import { fmtTime } from './format.js';
+import {
+  badgeLabel, clearState, createWatcher, loadPrefs, showBrowserNotification
+} from './notify.js';
+import { openNotifySettings } from './notify-settings.js';
 import { h, panel, wirePanel } from './ui.js';
 
 import * as dashboard from './pages/dashboard.js';
@@ -34,6 +38,7 @@ const el = {
   userName: document.getElementById('user-name'),
   userMeta: document.getElementById('user-meta'),
   logout: document.getElementById('logout'),
+  notifySettings: document.getElementById('notify-settings'),
   navToggle: document.getElementById('nav-toggle'),
   nav: document.getElementById('rail-nav')
 };
@@ -154,7 +159,7 @@ function showApp(user) {
   el.app.hidden = false;
   el.userName.textContent = user?.name || '';
   el.userMeta.textContent = user?.badge ? `権限 ${user.badge}` : '';
-  loadBadge();
+  startNotifyWatcher();
 }
 
 el.signinForm.addEventListener('submit', async (e) => {
@@ -179,6 +184,8 @@ el.signinForm.addEventListener('submit', async (e) => {
 });
 
 el.logout.addEventListener('click', async () => {
+  stopNotifyWatcher();
+  clearState();
   try {
     await api.logout();
   } catch {
@@ -187,25 +194,62 @@ el.logout.addEventListener('click', async () => {
   location.href = keepQuery('/dashboard');
 });
 
-async function loadBadge() {
-  if (ctx.demo) {
-    // デモの件数はデモデータから導く。3 箇所に同じ数字を書くとすぐ食い違う。
-    const unread = demoNotifications().notifications.filter((n) => n.read === false).length;
-    el.badge.textContent = String(unread);
-    el.badge.hidden = unread === 0;
-    return;
-  }
-  try {
-    const { count } = await api.unreadCount();
-    if (count > 0) {
-      el.badge.textContent = count <= 99 ? String(count) : '99+';
-      el.badge.hidden = false;
-    } else {
-      el.badge.hidden = true;
-    }
-  } catch {
+el.notifySettings.addEventListener('click', () => {
+  openNotifySettings({ watcher, isDemo: ctx.demo });
+});
+
+// ── 変更通知の監視 ──────────────────────────────────
+function setBadge(count) {
+  const label = badgeLabel(count);
+  if (label) {
+    el.badge.textContent = label;
+    el.badge.hidden = false;
+  } else {
     el.badge.hidden = true;
   }
+}
+
+const watcher = createWatcher({
+  origin: location.origin,
+  getPrefs: loadPrefs,
+  isVisible: () => document.visibilityState !== 'hidden',
+  onBadge: setBadge,
+  unreadCount: async () => {
+    if (ctx.demo) {
+      const unread = demoNotifications().notifications.filter((n) => n.read === false).length;
+      return { count: unread };
+    }
+    return api.unreadCount();
+  },
+  notifications: async () => {
+    if (ctx.demo) return demoNotifications();
+    return api.notifications();
+  },
+  showBrowser: showBrowserNotification,
+  sendDiscord: async (payload, webhookUrl) => {
+    if (ctx.demo) {
+      // デモでも Worker があれば中継を試す。無い静的配信ではブラウザ通知だけ。
+      try {
+        await api.notifyDiscord(webhookUrl, payload);
+      } catch (e) {
+        if (e instanceof Unauthenticated) {
+          throw new Error('Discord へ送るにはログインが必要です（Worker 経由）');
+        }
+        throw e;
+      }
+      return;
+    }
+    await api.notifyDiscord(webhookUrl, payload);
+  }
+});
+
+function startNotifyWatcher() {
+  watcher.stop();
+  watcher.start();
+}
+
+function stopNotifyWatcher() {
+  watcher.stop();
 }
 
 // ── シェルの配線 ────────────────────────────────────

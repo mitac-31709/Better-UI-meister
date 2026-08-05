@@ -39,5 +39,12 @@ export const api = {
   equipments: () => request('/api/equipments'),
   loans: () => request('/api/loans'),
   notifications: () => request('/api/notifications'),
-  unreadCount: () => request('/api/notifications/unread_count')
+  unreadCount: () => request('/api/notifications/unread_count'),
+
+  /** Discord Incoming Webhook へ Worker 経由で送る。URL は Worker に残さない。 */
+  notifyDiscord: (webhookUrl, payload) => request('/api/notify/discord', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ webhookUrl, payload })
+  })
 };

@@ -187,6 +187,69 @@ button { font: inherit; color: inherit; }
   text-align: center;
 }
 
+/* 通知の届け先。チェックはスイッチに見せるが、操作は標準の checkbox。 */
+.notify-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+.switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--touch-min);
+  cursor: pointer;
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+}
+.switch__input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch__ui {
+  position: relative;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 1.4rem;
+  border-radius: var(--radius-pill);
+  border: var(--rule-fine) solid var(--color-rule-2);
+  background: var(--color-paper-2);
+  transition: background-color var(--dur-micro) var(--ease-out),
+              border-color var(--dur-micro) var(--ease-out);
+}
+.switch__ui::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(1.4rem - 6px);
+  height: calc(1.4rem - 6px);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  border: var(--rule-fine) solid var(--color-rule-2);
+  transition: transform var(--dur-micro) var(--ease-out),
+              background-color var(--dur-micro) var(--ease-out),
+              border-color var(--dur-micro) var(--ease-out);
+}
+.switch__input:checked + .switch__ui {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.switch__input:checked + .switch__ui::after {
+  transform: translateX(1.1rem);
+  border-color: var(--color-accent-ink);
+  background: var(--color-accent-ink);
+}
+.switch__input:focus-visible + .switch__ui {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.switch__label { flex: 1 1 auto; }
+
 .rail__user {
   display: flex;
   flex-direction: column;

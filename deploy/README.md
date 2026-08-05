@@ -78,6 +78,7 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 | `GET` | `/api/loans` | 貸出 |
 | `GET` | `/api/notifications` | 通知 |
 | `GET` | `/api/notifications/unread_count` | 元アプリの JSON をそのまま通す |
+| `POST` | `/api/notify/discord` | Discord Incoming Webhook へ中継（URL は保存しない） |
 | `GET` | `/api/health` | 設定の確認（秘密は返さない） |
 
 画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。例（`/api/orders`）:
@@ -96,6 +97,22 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 
 未ログインは全て `401` + `{ "code": "unauthenticated" }`。
 
+### 変更通知（ブラウザ / Discord）
+
+画面のレール「届け先」から、未読が増えたときの転送先を選べる。
+
+| 届け先 | 動き |
+| --- | --- |
+| ブラウザ | Notification API。許可は端末のブラウザ設定 |
+| Discord | Incoming Webhook。URL は **端末の localStorage だけ**に保存 |
+
+未読件数は表示中 60 秒・非表示 5 分でポーリングする。初回の観測は基準値にする
+だけで送らない（ログイン直後に既存の未読をまとめて飛ばさない）。
+
+Discord へはブラウザから直接飛ばず、`POST /api/notify/discord` が中継する
+（CORS 回避）。Worker は Webhook URL を保存しない。オープンプロキシにしないため
+ログイン必須で、`discord.com` / `discordapp.com` の Webhook 形だけを受け付ける。
+
 ## 構成
 
 | ファイル | 中身 |
@@ -104,11 +121,13 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 | `src/parse-pages.js` | 他 5 画面と nav の HTML → JSON |
 | `src/meister.js` | Devise ログイン／サインアウト、HTML 取得 |
 | `src/session.js` | セッション Cookie の封印と開封（AES-GCM） |
+| `src/discord.js` | Discord Webhook URL の検証と転送 |
 | `src/index.js` | ルーティング、静的資産の配信 |
 | `wrangler.jsonc` | Worker の設定 |
 | `build.sh` | `../fork` から公開するファイルだけ `public/` に揃える |
 | `test/parse.test.mjs` | 週報のパーサを実 HTML で検証 |
 | `test/parse-pages.test.mjs` | 他 5 画面のパーサを実 HTML で検証 |
+| `test/notify.test.mjs` | Discord 中継と通知差分の純関数 |
 | `test/api.test.mjs` | 動いているエンドポイントに対して検証 |
 | `test/e2e.py` | ログインから 6 画面・ログアウトまで実ブラウザで通す |
 
