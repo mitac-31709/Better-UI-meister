@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ログイン - マイスター管理システム</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="Yh94_HLfbGvuQmOJc9nY_jFJvjo-nFmAZzHo_A_azPnWXaR-GYuZEkUXWcom1cuHOJyCH8H8SXCO6lBHVtguew" />
+    
+
+    
+
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/assets/tailwind-c5b5d75e.css" data-turbo-track="reload" />
+    <link rel="stylesheet" href="/assets/application-7e8bcb07.css" data-turbo-track="reload" />
+    <script type="importmap" data-turbo-track="reload">{
+  "imports": {
+    "application": "/assets/application-9177c313.js",
+    "notifications": "/assets/notifications-9c18f17a.js",
+    "@hotwired/turbo-rails": "/assets/turbo.min-1262d735.js",
+    "@hotwired/stimulus": "/assets/stimulus.min-4b1e420e.js",
+    "@hotwired/stimulus-loading": "/assets/stimulus-loading-1fc53fe7.js",
+    "@rails/actioncable": "/assets/actioncable.esm-e0ec9819.js",
+    "controllers/admin_order_sidebar_controller": "/assets/controllers/admin_order_sidebar_controller-9f11941f.js",
+    "controllers/admin_report_sidebar_controller": "/assets/controllers/admin_report_sidebar_controller-0d523e8d.js",
+    "controllers/application": "/assets/controllers/application-f43e3a1a.js",
+    "controllers/collaborative_edit_controller": "/assets/controllers/collaborative_edit_controller-ca4cedf0.js",
+    "controllers/dropdown_controller": "/assets/controllers/dropdown_controller-1422fd53.js",
+    "controllers/flash_message_controller": "/assets/controllers/flash_message_controller-b130ffa9.js",
+    "controllers/hello_controller": "/assets/controllers/hello_controller-708796bd.js",
+    "controllers": "/assets/controllers/index-ee64e1f1.js",
+    "controllers/mobile_menu_controller": "/assets/controllers/mobile_menu_controller-9ec055e0.js",
+    "controllers/notification_list_controller": "/assets/controllers/notification_list_controller-f38a201b.js",
+    "controllers/notifications_controller": "/assets/controllers/notifications_controller-e525de16.js",
+    "controllers/order_export_controller": "/assets/controllers/order_export_controller-1f223bcb.js",
+    "controllers/order_total_controller": "/assets/controllers/order_total_controller-a9a4e722.js",
+    "controllers/report_sidebar_controller": "/assets/controllers/report_sidebar_controller-90fbfeb9.js",
+    "controllers/sales_site_controller": "/assets/controllers/sales_site_controller-9b014f2c.js",
+    "controllers/side_panel_controller": "/assets/controllers/side_panel_controller-1d75203f.js",
+    "controllers/side_panel_trigger_controller": "/assets/controllers/side_panel_trigger_controller-c8f7ae57.js",
+    "controllers/sortable_table_controller": "/assets/controllers/sortable_table_controller-ad879dee.js",
+    "controllers/ta_order_bulk_controller": "/assets/controllers/ta_order_bulk_controller-fef3bf26.js",
+    "controllers/ta_order_sidebar_controller": "/assets/controllers/ta_order_sidebar_controller-1b8d4954.js",
+    "controllers/ta_report_sidebar_controller": "/assets/controllers/ta_report_sidebar_controller-536ccf3f.js",
+    "controllers/user_order_sidebar_controller": "/assets/controllers/user_order_sidebar_controller-be9f3d63.js",
+    "controllers/user_report_sidebar_controller": "/assets/controllers/user_report_sidebar_controller-297ca574.js",
+    "channels/consumer": "/assets/channels/consumer-bf39ed12.js",
+    "channels": "/assets/channels/index-a2b73eb5.js",
+    "channels/report_edit_channel": "/assets/channels/report_edit_channel-3d58bfb4.js"
+  }
+}</script>
+<link rel="modulepreload" href="/assets/application-9177c313.js">
+<link rel="modulepreload" href="/assets/notifications-9c18f17a.js">
+<link rel="modulepreload" href="/assets/turbo.min-1262d735.js">
+<link rel="modulepreload" href="/assets/stimulus.min-4b1e420e.js">
+<link rel="modulepreload" href="/assets/stimulus-loading-1fc53fe7.js">
+<link rel="modulepreload" href="/assets/actioncable.esm-e0ec9819.js">
+<link rel="modulepreload" href="/assets/controllers/admin_order_sidebar_controller-9f11941f.js">
+<link rel="modulepreload" href="/assets/controllers/admin_report_sidebar_controller-0d523e8d.js">
+<link rel="modulepreload" href="/assets/controllers/application-f43e3a1a.js">
+<link rel="modulepreload" href="/assets/controllers/collaborative_edit_controller-ca4cedf0.js">
+<link rel="modulepreload" href="/assets/controllers/dropdown_controller-1422fd53.js">
+<link rel="modulepreload" href="/assets/controllers/flash_message_controller-b130ffa9.js">
+<link rel="modulepreload" href="/assets/controllers/hello_controller-708796bd.js">
+<link rel="modulepreload" href="/assets/controllers/index-ee64e1f1.js">
+<link rel="modulepreload" href="/assets/controllers/mobile_menu_controller-9ec055e0.js">
+<link rel="modulepreload" href="/assets/controllers/notification_list_controller-f38a201b.js">
+<link rel="modulepreload" href="/assets/controllers/notifications_controller-e525de16.js">
+<link rel="modulepreload" href="/assets/controllers/order_export_controller-1f223bcb.js">
+<link rel="modulepreload" href="/assets/controllers/order_total_controller-a9a4e722.js">
+<link rel="modulepreload" href="/assets/controllers/report_sidebar_controller-90fbfeb9.js">
+<link rel="modulepreload" href="/assets/controllers/sales_site_controller-9b014f2c.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_controller-1d75203f.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_trigger_controller-c8f7ae57.js">
+<link rel="modulepreload" href="/assets/controllers/sortable_table_controller-ad879dee.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_bulk_controller-fef3bf26.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_sidebar_controller-1b8d4954.js">
+<link rel="modulepreload" href="/assets/controllers/ta_report_sidebar_controller-536ccf3f.js">
+<link rel="modulepreload" href="/assets/controllers/user_order_sidebar_controller-be9f3d63.js">
+<link rel="modulepreload" href="/assets/controllers/user_report_sidebar_controller-297ca574.js">
+<link rel="modulepreload" href="/assets/channels/consumer-bf39ed12.js">
+<link rel="modulepreload" href="/assets/channels/index-a2b73eb5.js">
+<link rel="modulepreload" href="/assets/channels/report_edit_channel-3d58bfb4.js">
+<script type="module">import "application"</script>
+  </head>
+
+  <body class="min-h-screen" data-theme="light">
+    
+
+    <main class=" min-h-screen bg-gray-50">
+
+      
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full space-y-8">
+    <div>
+      <div class="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-indigo-100">
+        <svg class="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+      </div>
+      <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        マイスター管理システム
+      </h2>
+      <p class="mt-2 text-center text-sm text-gray-600">
+        アカウントにログインしてください
+      </p>
+    </div>
+
+    <form class="new_user" id="new_user" action="/users/sign_in" accept-charset="UTF-8" method="post"><input type="hidden" name="authenticity_token" value="AcNozGiiROLEFE-A1FG-o_AgpGcHuYvtTQT9qqhTCnnKaieobrFZqv4Tz-tZt95gBR68Rmk5il7JT4QP1KtpLQ" autocomplete="off" />
+      <input type="hidden" name="remember" value="true">
+      <div class="rounded-md shadow-sm -space-y-px">
+        <div>
+          <label class="sr-only" for="user_email">メールアドレス</label>
+          <input autofocus="autofocus" autocomplete="email" required="required" class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" placeholder="メールアドレス" type="email" value="" name="user[email]" id="user_email" />
+        </div>
+        <div>
+          <label class="sr-only" for="user_password">パスワード</label>
+          <input autocomplete="current-password" required="required" class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm" placeholder="パスワード" type="password" name="user[password]" id="user_password" />
+        </div>
+      </div>
+
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <input name="user[remember_me]" type="hidden" value="0" autocomplete="off" /><input class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" type="checkbox" value="1" name="user[remember_me]" id="user_remember_me" />
+            <label class="ml-2 block text-sm text-gray-900" for="user_remember_me">ログイン状態を保持</label>
+          </div>
+
+          <div class="text-sm">
+            <a class="font-medium text-indigo-600 hover:text-indigo-500" href="/users/password/new">メールで認証してパスワードをリセット</a>
+          </div>
+        </div>
+
+      <div>
+        <input type="submit" name="commit" value="ログイン" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" data-disable-with="ログイン" />
+      </div>
+
+      <div class="text-center">
+        <p class="text-sm text-gray-600">
+          アカウントが必要な方は管理者にお問い合わせください。
+        </p>
+      </div>
+</form>  </div>
+</div>
+
+    </main>
+  </body>
+</html>

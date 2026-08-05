@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Welcome - Meister Management System</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="Gu2ZJHaYZ8h4gKg-Lt3lcYO7LSXMRrCWBIXlDcCQYpaur0WmHcySsdPVkn170fYIim4RADMmoGbtXl22mZKAFA" />
+    
+
+    
+
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/assets/tailwind-c5b5d75e.css" data-turbo-track="reload" />
+    <link rel="stylesheet" href="/assets/application-7e8bcb07.css" data-turbo-track="reload" />
+    <script type="importmap" data-turbo-track="reload">{
+  "imports": {
+    "application": "/assets/application-9177c313.js",
+    "notifications": "/assets/notifications-9c18f17a.js",
+    "@hotwired/turbo-rails": "/assets/turbo.min-1262d735.js",
+    "@hotwired/stimulus": "/assets/stimulus.min-4b1e420e.js",
+    "@hotwired/stimulus-loading": "/assets/stimulus-loading-1fc53fe7.js",
+    "@rails/actioncable": "/assets/actioncable.esm-e0ec9819.js",
+    "controllers/admin_order_sidebar_controller": "/assets/controllers/admin_order_sidebar_controller-9f11941f.js",
+    "controllers/admin_report_sidebar_controller": "/assets/controllers/admin_report_sidebar_controller-0d523e8d.js",
+    "controllers/application": "/assets/controllers/application-f43e3a1a.js",
+    "controllers/collaborative_edit_controller": "/assets/controllers/collaborative_edit_controller-ca4cedf0.js",
+    "controllers/dropdown_controller": "/assets/controllers/dropdown_controller-1422fd53.js",
+    "controllers/flash_message_controller": "/assets/controllers/flash_message_controller-b130ffa9.js",
+    "controllers/hello_controller": "/assets/controllers/hello_controller-708796bd.js",
+    "controllers": "/assets/controllers/index-ee64e1f1.js",
+    "controllers/mobile_menu_controller": "/assets/controllers/mobile_menu_controller-9ec055e0.js",
+    "controllers/notification_list_controller": "/assets/controllers/notification_list_controller-f38a201b.js",
+    "controllers/notifications_controller": "/assets/controllers/notifications_controller-e525de16.js",
+    "controllers/order_export_controller": "/assets/controllers/order_export_controller-1f223bcb.js",
+    "controllers/order_total_controller": "/assets/controllers/order_total_controller-a9a4e722.js",
+    "controllers/report_sidebar_controller": "/assets/controllers/report_sidebar_controller-90fbfeb9.js",
+    "controllers/sales_site_controller": "/assets/controllers/sales_site_controller-9b014f2c.js",
+    "controllers/side_panel_controller": "/assets/controllers/side_panel_controller-1d75203f.js",
+    "controllers/side_panel_trigger_controller": "/assets/controllers/side_panel_trigger_controller-c8f7ae57.js",
+    "controllers/sortable_table_controller": "/assets/controllers/sortable_table_controller-ad879dee.js",
+    "controllers/ta_order_bulk_controller": "/assets/controllers/ta_order_bulk_controller-fef3bf26.js",
+    "controllers/ta_order_sidebar_controller": "/assets/controllers/ta_order_sidebar_controller-1b8d4954.js",
+    "controllers/ta_report_sidebar_controller": "/assets/controllers/ta_report_sidebar_controller-536ccf3f.js",
+    "controllers/user_order_sidebar_controller": "/assets/controllers/user_order_sidebar_controller-be9f3d63.js",
+    "controllers/user_report_sidebar_controller": "/assets/controllers/user_report_sidebar_controller-297ca574.js",
+    "channels/consumer": "/assets/channels/consumer-bf39ed12.js",
+    "channels": "/assets/channels/index-a2b73eb5.js",
+    "channels/report_edit_channel": "/assets/channels/report_edit_channel-3d58bfb4.js"
+  }
+}</script>
+<link rel="modulepreload" href="/assets/application-9177c313.js">
+<link rel="modulepreload" href="/assets/notifications-9c18f17a.js">
+<link rel="modulepreload" href="/assets/turbo.min-1262d735.js">
+<link rel="modulepreload" href="/assets/stimulus.min-4b1e420e.js">
+<link rel="modulepreload" href="/assets/stimulus-loading-1fc53fe7.js">
+<link rel="modulepreload" href="/assets/actioncable.esm-e0ec9819.js">
+<link rel="modulepreload" href="/assets/controllers/admin_order_sidebar_controller-9f11941f.js">
+<link rel="modulepreload" href="/assets/controllers/admin_report_sidebar_controller-0d523e8d.js">
+<link rel="modulepreload" href="/assets/controllers/application-f43e3a1a.js">
+<link rel="modulepreload" href="/assets/controllers/collaborative_edit_controller-ca4cedf0.js">
+<link rel="modulepreload" href="/assets/controllers/dropdown_controller-1422fd53.js">
+<link rel="modulepreload" href="/assets/controllers/flash_message_controller-b130ffa9.js">
+<link rel="modulepreload" href="/assets/controllers/hello_controller-708796bd.js">
+<link rel="modulepreload" href="/assets/controllers/index-ee64e1f1.js">
+<link rel="modulepreload" href="/assets/controllers/mobile_menu_controller-9ec055e0.js">
+<link rel="modulepreload" href="/assets/controllers/notification_list_controller-f38a201b.js">
+<link rel="modulepreload" href="/assets/controllers/notifications_controller-e525de16.js">
+<link rel="modulepreload" href="/assets/controllers/order_export_controller-1f223bcb.js">
+<link rel="modulepreload" href="/assets/controllers/order_total_controller-a9a4e722.js">
+<link rel="modulepreload" href="/assets/controllers/report_sidebar_controller-90fbfeb9.js">
+<link rel="modulepreload" href="/assets/controllers/sales_site_controller-9b014f2c.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_controller-1d75203f.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_trigger_controller-c8f7ae57.js">
+<link rel="modulepreload" href="/assets/controllers/sortable_table_controller-ad879dee.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_bulk_controller-fef3bf26.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_sidebar_controller-1b8d4954.js">
+<link rel="modulepreload" href="/assets/controllers/ta_report_sidebar_controller-536ccf3f.js">
+<link rel="modulepreload" href="/assets/controllers/user_order_sidebar_controller-be9f3d63.js">
+<link rel="modulepreload" href="/assets/controllers/user_report_sidebar_controller-297ca574.js">
+<link rel="modulepreload" href="/assets/channels/consumer-bf39ed12.js">
+<link rel="modulepreload" href="/assets/channels/index-a2b73eb5.js">
+<link rel="modulepreload" href="/assets/channels/report_edit_channel-3d58bfb4.js">
+<script type="module">import "application"</script>
+  </head>
+
+  <body class="min-h-screen" data-theme="light">
+    
+
+    <main class=" min-h-screen bg-gray-50">
+
+      
+<div class="min-h-screen bg-gray-50">
+  <!-- Hero Section -->
+  <div class="relative bg-white overflow-hidden">
+    <div class="max-w-7xl mx-auto">
+      <div class="relative z-10 pb-8 bg-white sm:pb-16 md:pb-20 lg:max-w-2xl lg:w-full lg:pb-28 xl:pb-32">
+        <svg class="hidden lg:block absolute right-0 inset-y-0 h-full w-48 text-white transform translate-x-1/2" fill="currentColor" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <polygon points="50,0 100,0 50,100 0,100" />
+        </svg>
+
+        <div class="relative pt-6 px-4 sm:px-6 lg:px-8">
+          <nav class="relative flex items-center justify-between sm:h-10 lg:justify-start" aria-label="Global">
+            <div class="flex items-center flex-grow flex-shrink-0 lg:flex-grow-0">
+              <div class="flex items-center justify-between w-full md:w-auto">
+                <span class="text-2xl font-bold text-indigo-600">MMS</span>
+              </div>
+            </div>
+            <div class="hidden md:block md:ml-10 md:pr-4 md:space-x-8">
+              <a class="font-medium text-gray-500 hover:text-gray-900" href="/users/sign_in">ログイン</a>
+            </div>
+          </nav>
+        </div>
+
+        <main class="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
+          <div class="sm:text-center lg:text-left">
+            <h1 class="text-4xl tracking-tight font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
+              <span class="block xl:inline">Meister</span>
+              <span class="block text-indigo-600 xl:inline">Management System</span>
+            </h1>
+            <p class="mt-3 text-base text-gray-500 sm:mt-5 sm:text-lg sm:max-w-xl sm:mx-auto md:mt-5 md:text-xl lg:mx-0">
+              研究・授業・機材管理を一元化
+            </p>
+            <div class="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
+              <div class="rounded-md shadow">
+                <a class="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10" href="/users/sign_in">ログイン</a>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <div class="lg:absolute lg:inset-y-0 lg:right-0 lg:w-1/2">
+      <div class="h-56 w-full bg-gradient-to-r from-indigo-500 to-purple-600 sm:h-72 md:h-96 lg:w-full lg:h-full flex items-center justify-center">
+        <div class="text-center">
+          <svg class="mx-auto h-24 w-24 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          <h3 class="mt-4 text-xl font-semibold text-white">機材と授業の統合管理</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div class="py-12 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="lg:text-center">
+        <h2 class="text-base text-indigo-600 font-semibold tracking-wide uppercase">特徴</h2>
+        <p class="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+          主な機能
+        </p>
+      </div>
+
+      <div class="mt-10">
+        <div class="space-y-10 md:space-y-0 md:grid md:grid-cols-2 md:gap-x-8 md:gap-y-10">
+          <div class="relative">
+            <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="ml-16 text-lg leading-6 font-medium text-gray-900">注文管理</p>
+            <p class="mt-2 ml-16 text-base text-gray-500">
+              リクエストから配送まで注文を追跡・管理し、詳細なステータス更新と予算監視を行います。
+            </p>
+          </div>
+
+          <div class="relative">
+            <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+            </div>
+            <p class="ml-16 text-lg leading-6 font-medium text-gray-900">機材貸出管理</p>
+            <p class="mt-2 ml-16 text-base text-gray-500">
+              申請から返却までの貸出ライフサイクルを可視化
+            </p>
+          </div>
+
+          <div class="relative">
+            <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+              </svg>
+            </div>
+            <p class="ml-16 text-lg leading-6 font-medium text-gray-900">授業教材管理</p>
+            <p class="mt-2 ml-16 text-base text-gray-500">
+              教材の追加・更新・可視化を簡単に
+            </p>
+          </div>
+
+          <div class="relative">
+            <div class="absolute flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <p class="ml-16 text-lg leading-6 font-medium text-gray-900">週報分析</p>
+            <p class="mt-2 ml-16 text-base text-gray-500">
+              提出状況や進捗を可視化しパターンを把握
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    </main>
+  </body>
+</html>

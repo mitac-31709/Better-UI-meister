@@ -1,0 +1,7 @@
+# ローカル開発用の秘密。コミットしない。
+deploy/.dev.vars
+# build.sh の生成物
+deploy/public/
+# wrangler のローカル状態
+deploy/.wrangler/
+deploy/node_modules/

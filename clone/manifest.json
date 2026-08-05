@@ -1,0 +1,488 @@
+{
+  "base": "https://meister.tokyo-ct.org",
+  "authenticated": true,
+  "login_message": "ログイン成功（着地: https://meister.tokyo-ct.org/dashboard）",
+  "fetched_at": "2026-08-05T09:26:43Z",
+  "pages": 19,
+  "assets": 36,
+  "records": [
+    {
+      "url": "https://meister.tokyo-ct.org/",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 13961,
+      "redirected": false,
+      "saved": "index.html",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/users/sign_in",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/users/sign_in",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 10715,
+      "redirected": false,
+      "saved": "users/sign_in.html",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/actioncable.esm-e0ec9819.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 14813,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/application-7e8bcb07.css",
+      "status": 200,
+      "content_type": "text/css",
+      "bytes": 4728,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/application-9177c313.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1661,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/channels/consumer-bf39ed12.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 270,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/channels/index-a2b73eb5.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 92,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/channels/report_edit_channel-3d58bfb4.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1529,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/admin_order_sidebar_controller-9f11941f.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 3748,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/admin_report_sidebar_controller-0d523e8d.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1314,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/application-f43e3a1a.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 217,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/collaborative_edit_controller-ca4cedf0.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 23735,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/dropdown_controller-1422fd53.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1522,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/flash_message_controller-b130ffa9.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 518,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/hello_controller-708796bd.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 157,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/index-ee64e1f1.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 272,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/mobile_menu_controller-9ec055e0.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 2394,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/notification_list_controller-f38a201b.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 2859,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/notifications_controller-e525de16.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 4234,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/order_export_controller-1f223bcb.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 6134,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/order_total_controller-a9a4e722.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 444,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/report_sidebar_controller-90fbfeb9.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 4699,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/sales_site_controller-9b014f2c.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1739,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/side_panel_controller-1d75203f.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 5533,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/side_panel_trigger_controller-c8f7ae57.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 947,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/sortable_table_controller-ad879dee.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 2488,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/ta_order_bulk_controller-fef3bf26.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 4319,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/ta_order_sidebar_controller-1b8d4954.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1028,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/ta_report_sidebar_controller-536ccf3f.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1489,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/user_order_sidebar_controller-be9f3d63.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1033,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/controllers/user_report_sidebar_controller-297ca574.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 1510,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/notifications-9c18f17a.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 3783,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/stimulus-loading-1fc53fe7.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 3315,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/stimulus.min-4b1e420e.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 45657,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/tailwind-c5b5d75e.css",
+      "status": 200,
+      "content_type": "text/css",
+      "bytes": 149389,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/assets/turbo.min-1262d735.js",
+      "status": 200,
+      "content_type": "text/javascript",
+      "bytes": 105362,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/icon.png",
+      "status": 200,
+      "content_type": "image/png",
+      "bytes": 4166,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/icon.svg",
+      "status": 200,
+      "content_type": "image/svg+xml",
+      "bytes": 122,
+      "kind": "asset",
+      "phase": "public"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/dashboard",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": false,
+      "saved": "dashboard.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/reports",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/reports",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 22428,
+      "redirected": false,
+      "saved": "reports.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/reports/new",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/reports",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 23877,
+      "redirected": true,
+      "saved": "reports/new.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/orders",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/orders",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 23664,
+      "redirected": false,
+      "saved": "orders.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/orders/new",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/orders/new",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 19933,
+      "redirected": false,
+      "saved": "orders/new.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/loans",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/loans",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 15598,
+      "redirected": false,
+      "saved": "loans.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/equipments",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/equipments",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14666,
+      "redirected": false,
+      "saved": "equipments.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/notifications",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/notifications",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 15089,
+      "redirected": false,
+      "saved": "notifications.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/notifications/unread_count",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/notifications/unread_count",
+      "content_type": "application/json; charset=utf-8",
+      "bytes": 11,
+      "redirected": false,
+      "saved": "notifications/unread_count.json",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/ta",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "ta.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/ta/reports",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "ta/reports.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/ta/orders",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "ta/orders.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/admin",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "admin.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/admin/reports",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "admin/reports.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/admin/orders",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "admin/orders.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/admin/users",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 15299,
+      "redirected": true,
+      "saved": "admin/users.html",
+      "phase": "auth"
+    },
+    {
+      "url": "https://meister.tokyo-ct.org/",
+      "status": 200,
+      "final_url": "https://meister.tokyo-ct.org/dashboard",
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 14464,
+      "redirected": true,
+      "saved": "index.html",
+      "phase": "auth"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · theme: Cobalt
+ * design-system: design.md · designed-as-app · enrichment: none
+ * nav: N3 side-rail · footer: Ft2 inline
+ *
+ * 全トークンの定義はこのファイルだけ。app.css は必ず var() で参照する。
+ * 生の色・生のフォント名・スケール外の余白を書かない。
+ */
+
+:root {
+  /* Cobalt — 冷たい engineered near-white / 電気コバルト 1 色 */
+  --color-paper:      oklch(98.5% 0.004 250);
+  --color-paper-2:    oklch(96.5% 0.005 252);
+  --color-paper-3:    oklch(94%   0.006 254);
+  --color-rule:       oklch(91%   0.008 255);
+  --color-rule-2:     oklch(83%   0.011 255);
+  --color-muted:      oklch(56%   0.013 255);
+  --color-neutral:    oklch(46%   0.015 255);
+  --color-ink-2:      oklch(34%   0.018 257);
+  --color-ink:        oklch(24%   0.020 258);
+  --color-accent:     oklch(58%   0.20  256);
+  --color-accent-ink: oklch(99%   0.004 256);
+  --color-focus:      oklch(58%   0.20  256);
+
+  /* 期限超過だけに使う。色単独で意味を持たせず必ずグリフと文字を添える。 */
+  --color-warn:       oklch(56%   0.15  45);
+  --color-warn-bg:    oklch(96%   0.020 45);
+
+  /* アクセントの薄い面。選択行とセグメントの現在地に使う。 */
+  --color-accent-bg:  oklch(96%   0.022 256);
+
+  /* 日本語グリフは同じスタックの後段に置く。別トークンにすると 4 ファミリー目になる。 */
+  --font-display: "Space Grotesk", "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
+  --font-body:    "Inter", "Noto Sans JP", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "Noto Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --weight-body:    400;
+  --weight-medium:  500;
+  --weight-display: 700;
+
+  --text-2xs:  0.6875rem;
+  --text-xs:   0.75rem;
+  --text-sm:   0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md:   1.0625rem;
+  --text-lg:   1.375rem;
+  --text-xl:   1.75rem;
+  --text-2xl:  2.125rem;
+
+  --lh-tight:   1.15;
+  --lh-snug:    1.35;
+  --lh-normal:  1.55;
+  --lh-relaxed: 1.7;
+
+  --tracking-display: -0.03em;
+  --tracking-tight:   -0.015em;
+  --tracking-normal:  0;
+  --tracking-label:   0.08em;
+
+  /* 4pt スケール */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+
+  --measure:      68ch;
+  --content-max:  56rem;
+  --rule-fine:    1px;
+  --rail-width:   15rem;
+  --topbar-height: 3.5rem;
+  --panel-width:  27rem;
+  --control-height: 2.5rem;
+  --touch-min:    2.75rem;
+
+  /* Cobalt は詰まった技術寄りの角丸 */
+  --radius-card:  10px;
+  --radius-pill:  6px;
+  --radius-input: 6px;
+
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long:  420ms;
+
+  --z-base:       1;
+  --z-raised:     10;
+  --z-dropdown:   100;
+  --z-sticky:     200;
+  --z-sticky-nav: 300;
+  --z-modal:      400;
+  --z-toast:      500;
+}

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ダッシュボード</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="csrf-param" content="authenticity_token" />
+<meta name="csrf-token" content="hrLOlmwMdqpyvBWbIoB8EMxyfHlh-N6BZvJwhWo2lp64fvwxgPgA-f_e5XiTLOAy5tMseuSMvCPgEvATHOOb9Q" />
+    
+
+    
+
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="/assets/tailwind-c5b5d75e.css" data-turbo-track="reload" />
+    <link rel="stylesheet" href="/assets/application-7e8bcb07.css" data-turbo-track="reload" />
+    <script type="importmap" data-turbo-track="reload">{
+  "imports": {
+    "application": "/assets/application-9177c313.js",
+    "notifications": "/assets/notifications-9c18f17a.js",
+    "@hotwired/turbo-rails": "/assets/turbo.min-1262d735.js",
+    "@hotwired/stimulus": "/assets/stimulus.min-4b1e420e.js",
+    "@hotwired/stimulus-loading": "/assets/stimulus-loading-1fc53fe7.js",
+    "@rails/actioncable": "/assets/actioncable.esm-e0ec9819.js",
+    "controllers/admin_order_sidebar_controller": "/assets/controllers/admin_order_sidebar_controller-9f11941f.js",
+    "controllers/admin_report_sidebar_controller": "/assets/controllers/admin_report_sidebar_controller-0d523e8d.js",
+    "controllers/application": "/assets/controllers/application-f43e3a1a.js",
+    "controllers/collaborative_edit_controller": "/assets/controllers/collaborative_edit_controller-ca4cedf0.js",
+    "controllers/dropdown_controller": "/assets/controllers/dropdown_controller-1422fd53.js",
+    "controllers/flash_message_controller": "/assets/controllers/flash_message_controller-b130ffa9.js",
+    "controllers/hello_controller": "/assets/controllers/hello_controller-708796bd.js",
+    "controllers": "/assets/controllers/index-ee64e1f1.js",
+    "controllers/mobile_menu_controller": "/assets/controllers/mobile_menu_controller-9ec055e0.js",
+    "controllers/notification_list_controller": "/assets/controllers/notification_list_controller-f38a201b.js",
+    "controllers/notifications_controller": "/assets/controllers/notifications_controller-e525de16.js",
+    "controllers/order_export_controller": "/assets/controllers/order_export_controller-1f223bcb.js",
+    "controllers/order_total_controller": "/assets/controllers/order_total_controller-a9a4e722.js",
+    "controllers/report_sidebar_controller": "/assets/controllers/report_sidebar_controller-90fbfeb9.js",
+    "controllers/sales_site_controller": "/assets/controllers/sales_site_controller-9b014f2c.js",
+    "controllers/side_panel_controller": "/assets/controllers/side_panel_controller-1d75203f.js",
+    "controllers/side_panel_trigger_controller": "/assets/controllers/side_panel_trigger_controller-c8f7ae57.js",
+    "controllers/sortable_table_controller": "/assets/controllers/sortable_table_controller-ad879dee.js",
+    "controllers/ta_order_bulk_controller": "/assets/controllers/ta_order_bulk_controller-fef3bf26.js",
+    "controllers/ta_order_sidebar_controller": "/assets/controllers/ta_order_sidebar_controller-1b8d4954.js",
+    "controllers/ta_report_sidebar_controller": "/assets/controllers/ta_report_sidebar_controller-536ccf3f.js",
+    "controllers/user_order_sidebar_controller": "/assets/controllers/user_order_sidebar_controller-be9f3d63.js",
+    "controllers/user_report_sidebar_controller": "/assets/controllers/user_report_sidebar_controller-297ca574.js",
+    "channels/consumer": "/assets/channels/consumer-bf39ed12.js",
+    "channels": "/assets/channels/index-a2b73eb5.js",
+    "channels/report_edit_channel": "/assets/channels/report_edit_channel-3d58bfb4.js"
+  }
+}</script>
+<link rel="modulepreload" href="/assets/application-9177c313.js">
+<link rel="modulepreload" href="/assets/notifications-9c18f17a.js">
+<link rel="modulepreload" href="/assets/turbo.min-1262d735.js">
+<link rel="modulepreload" href="/assets/stimulus.min-4b1e420e.js">
+<link rel="modulepreload" href="/assets/stimulus-loading-1fc53fe7.js">
+<link rel="modulepreload" href="/assets/actioncable.esm-e0ec9819.js">
+<link rel="modulepreload" href="/assets/controllers/admin_order_sidebar_controller-9f11941f.js">
+<link rel="modulepreload" href="/assets/controllers/admin_report_sidebar_controller-0d523e8d.js">
+<link rel="modulepreload" href="/assets/controllers/application-f43e3a1a.js">
+<link rel="modulepreload" href="/assets/controllers/collaborative_edit_controller-ca4cedf0.js">
+<link rel="modulepreload" href="/assets/controllers/dropdown_controller-1422fd53.js">
+<link rel="modulepreload" href="/assets/controllers/flash_message_controller-b130ffa9.js">
+<link rel="modulepreload" href="/assets/controllers/hello_controller-708796bd.js">
+<link rel="modulepreload" href="/assets/controllers/index-ee64e1f1.js">
+<link rel="modulepreload" href="/assets/controllers/mobile_menu_controller-9ec055e0.js">
+<link rel="modulepreload" href="/assets/controllers/notification_list_controller-f38a201b.js">
+<link rel="modulepreload" href="/assets/controllers/notifications_controller-e525de16.js">
+<link rel="modulepreload" href="/assets/controllers/order_export_controller-1f223bcb.js">
+<link rel="modulepreload" href="/assets/controllers/order_total_controller-a9a4e722.js">
+<link rel="modulepreload" href="/assets/controllers/report_sidebar_controller-90fbfeb9.js">
+<link rel="modulepreload" href="/assets/controllers/sales_site_controller-9b014f2c.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_controller-1d75203f.js">
+<link rel="modulepreload" href="/assets/controllers/side_panel_trigger_controller-c8f7ae57.js">
+<link rel="modulepreload" href="/assets/controllers/sortable_table_controller-ad879dee.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_bulk_controller-fef3bf26.js">
+<link rel="modulepreload" href="/assets/controllers/ta_order_sidebar_controller-1b8d4954.js">
+<link rel="modulepreload" href="/assets/controllers/ta_report_sidebar_controller-536ccf3f.js">
+<link rel="modulepreload" href="/assets/controllers/user_order_sidebar_controller-be9f3d63.js">
+<link rel="modulepreload" href="/assets/controllers/user_report_sidebar_controller-297ca574.js">
+<link rel="modulepreload" href="/assets/channels/consumer-bf39ed12.js">
+<link rel="modulepreload" href="/assets/channels/index-a2b73eb5.js">
+<link rel="modulepreload" href="/assets/channels/report_edit_channel-3d58bfb4.js">
+<script type="module">import "application"</script>
+  </head>
+
+  <body class="min-h-screen" data-theme="light">
+      <nav class="fixed top-0 left-0 right-0 z-50 bg-white shadow-sm border-b border-gray-200" 
+       data-controller="mobile-menu" 
+       data-mobile-menu-breakpoint-value="1000">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <div class="flex-shrink-0 flex items-center text-blue-600">
+            <a class="text-xl font-bold text-blue-600 leading-6" href="/">MMS</a>
+          </div>
+          <!-- Mobile menu button -->
+          <button type="button" class="ml-4 inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" 
+                  data-action="click->mobile-menu#toggle"
+                  data-mobile-menu-target="button">
+            <span class="sr-only">メニューを開く</span>
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-mobile-menu-target="menuIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <svg class="hidden h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-mobile-menu-target="closeIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <div class="ml-6 flex space-x-4 items-center"
+               data-mobile-menu-target="desktopNav">
+              <a class="bg-gray-100 text-gray-900 border-blue-500 whitespace-nowrap py-4 px-2 border-b-2 font-medium text-sm leading-5 flex items-center h-16" href="/dashboard">ダッシュボード</a>
+              <a class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-2 border-b-2 font-medium text-sm leading-5 flex items-center h-16" href="/orders">注文</a>
+              <a class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-2 border-b-2 font-medium text-sm leading-5 flex items-center h-16" href="/equipments">機材</a>
+              <a class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-2 border-b-2 font-medium text-sm leading-5 flex items-center h-16" href="/loans">貸出</a>
+              <a class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-2 border-b-2 font-medium text-sm leading-5 flex items-center h-16" href="/reports">週報</a>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <!-- Notifications -->
+          <div class="flex-shrink-0 relative p-1" 
+               data-controller="notifications" 
+               data-notifications-target="container"
+               id="notifications-container">
+            <a class="relative block p-2 text-gray-500 hover:text-gray-700 focus:outline-none rounded-md" href="/notifications">
+              <span class="sr-only">通知を見る</span>
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9zM13.73 21a2 2 0 01-3.46 0"></path>
+              </svg>
+</a>          </div>
+
+          <!-- User dropdown -->
+          <div class="relative" 
+               data-controller="dropdown"
+               data-action="keydown->dropdown#keydown">
+            <button type="button" 
+                    class="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                    data-dropdown-target="button"
+                    data-action="click->dropdown#toggle"
+                    aria-expanded="false" 
+                    aria-haspopup="true">
+              <span class="text-sm text-gray-700 truncate max-w-24"
+                    data-mobile-menu-target="userName">
+                三谷 慧介
+              </span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                      data-mobile-menu-target="userBadge">U</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            <div class="hidden absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none" 
+                 role="menu" 
+                 aria-orientation="vertical" 
+                 aria-labelledby="user-menu-button" 
+                 tabindex="-1"
+                 data-dropdown-target="menu">
+              <div class="px-4 py-2 text-sm text-gray-700 border-b border-gray-100"
+                   data-mobile-menu-target="menuTitle">
+                三谷 慧介
+              </div>
+              <div class="px-4 py-2">
+                <form class="button_to" method="post" action="/users/sign_out"><input type="hidden" name="_method" value="delete" autocomplete="off" /><button class="w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 rounded-md border border-gray-300 hover:border-gray-400" type="submit">ログアウト</button><input type="hidden" name="authenticity_token" value="lp17GpCiuuRh9ZRZI1Hi3Waxl5VOsU_pOik0myG-pRWNr_URH-AxllwUY1Pzu6izGJlFelNLcGZi-Wnx7gEs-A" autocomplete="off" /></form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Mobile menu -->
+    <div class="hidden border-t border-gray-200" 
+         data-mobile-menu-target="menu">
+      <div class="px-2 pt-2 pb-3 space-y-1">
+          <a class="bg-blue-50 border-blue-500 text-blue-700 block px-3 py-2 rounded-md text-base font-medium border-l-4" data-action="click-&gt;mobile-menu#linkClicked" href="/dashboard">ダッシュボード</a>
+          <a class="border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium border-l-4" data-action="click-&gt;mobile-menu#linkClicked" href="/orders">注文</a>
+          <a class="border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium border-l-4" data-action="click-&gt;mobile-menu#linkClicked" href="/equipments">機材</a>
+          <a class="border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium border-l-4" data-action="click-&gt;mobile-menu#linkClicked" href="/loans">貸出</a>
+          <a class="border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-50 block px-3 py-2 rounded-md text-base font-medium border-l-4" data-action="click-&gt;mobile-menu#linkClicked" href="/reports">週報</a>
+      </div>
+    </div>
+  </nav>
+
+
+    <main class="pt-20 pb-6 min-h-screen bg-gray-50">
+
+      
+<div class="max-w-7xl mx-auto">
+  <div class="mb-6">
+    <h1 class="text-3xl font-bold text-gray-900">ダッシュボード</h1>
+      <p class="text-gray-600 mt-2">チーム: 10(未定)</p>
+  </div>
+  <h1>調整中</h1>
+</div>
+
+    </main>
+  </body>
+</html>

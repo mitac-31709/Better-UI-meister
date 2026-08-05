@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "meister-reports-fork",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+
+  // 静的資産は build.sh が fork/ から public/ に揃える。
+  // ドキュメントとテストは公開しない。
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // 画面側はクライアント側でルーティングするので、資産に無いパスは index.html を返す。
+    "not_found_handling": "single-page-application",
+    // API だけは必ず Worker に通す。資産が先に配られると
+    // `/api/*` が SPA フォールバックで index.html になってしまう。
+    "run_worker_first": ["/api/*"]
+  },
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+
+  // 秘密は wrangler secret put で入れる。config には書かない。
+  //   SESSION_SECRET  セッション Cookie の暗号鍵
+  // 元アプリの資格情報は Worker に持たない。利用者が自分でログインする。
+}
