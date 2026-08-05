@@ -8,7 +8,7 @@
  * - `POST /api/notify/discord`  即時の Discord 中継
  * - `POST /api/notify/subscribe`  タブ閉鎖後も Discord へ送る購読を KV に登録
  * - `DELETE /api/notify/subscribe`  購読を削除
- * - Cron `0 * * * *`      購読を見て未読を Discord へ送る（1 時間ごと）
+ * - Cron `0 * * * *`      購読 id を列挙し、1 人ずつ `/api/notify/cron-tick` へ振り分け
  *
  * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で封印して
  * 自ドメインの Cookie に入れる（`src/session.js`）。
@@ -19,7 +19,9 @@
  * `DISCORD_WEBHOOK` へ運用向けの通知を送る（利用者の届け先とは別）。
  */
 
-import { runBackgroundNotify } from './background.js';
+import {
+  dispatchCronTicks, processSubscription, verifyCronTickToken
+} from './background.js';
 import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './discord.js';
 import { ApiError, createOrder, html, signIn, signOut, unreadCount } from './meister.js';
 import { parseReportsPage } from './parse.js';
@@ -325,6 +327,43 @@ async function handleSubscribeRefresh(request, env, session) {
   return json({ ok: true, id: sub.id, disabled: sub.disabled, lastError: sub.lastError });
 }
 
+/** Cron から振り分けられた 1 購読の処理。別 HTTP 呼び出しなので CPU 枠が分かれる。 */
+async function handleCronTick(request, env) {
+  if (!env.NOTIFY_SUBS) {
+    return json({ error: 'バックグラウンド配信が設定されていません' }, 503);
+  }
+  const ok = await verifyCronTickToken(
+    env.SESSION_SECRET,
+    request.headers.get('X-Cron-Tick')
+  );
+  if (!ok) return json({ error: 'forbidden', code: 'forbidden' }, 403);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'JSON の本文が必要です' }, 400);
+  }
+  const id = typeof body?.id === 'string' ? body.id.trim() : '';
+  if (!id) return json({ error: '購読 id が必要です' }, 400);
+
+  const sub = await getSubscription(env, id);
+  if (!sub) return json({ error: '購読が見つかりません', code: 'missing' }, 404);
+
+  const result = await processSubscription(sub, env, {
+    origin: new URL(request.url).origin
+  });
+  await putSubscription(env, result.sub);
+  return json({
+    ok: true,
+    id: result.sub.id,
+    sent: result.sent || 0,
+    skippedParse: Boolean(result.skippedParse),
+    disabled: result.sub.disabled,
+    error: result.error || null
+  });
+}
+
 async function handleApi(request, url, env) {
   const path = url.pathname;
 
@@ -345,6 +384,7 @@ async function handleApi(request, url, env) {
         discordProxy: true,
         background: Boolean(env.NOTIFY_SUBS),
         cron: '0 * * * *',
+        cronFanOut: true,
         parseAlertWebhook: Boolean(env.DISCORD_WEBHOOK)
       }
     });
@@ -367,6 +407,13 @@ async function handleApi(request, url, env) {
     if (request.method === 'PATCH') return handleSubscribeRefresh(request, env, session);
     return json({ error: 'POST / PATCH / DELETE を使ってください' }, 405,
       { Allow: 'POST, PATCH, DELETE' });
+  }
+
+  if (path === '/api/notify/cron-tick') {
+    if (request.method !== 'POST') {
+      return json({ error: 'POST を使ってください' }, 405, { Allow: 'POST' });
+    }
+    return handleCronTick(request, env);
   }
 
   if (path === '/api/orders' && request.method === 'POST') {
@@ -415,9 +462,12 @@ export default {
   },
 
   async scheduled(_controller, env, ctx) {
+    // 1 Cron ですべて処理せず、購読ごとに別 HTTP（別 CPU 枠）へ振る。
     ctx.waitUntil((async () => {
-      const summary = await runBackgroundNotify(env);
-      console.log('notify-background', JSON.stringify(summary));
+      const summary = await dispatchCronTicks(env, ctx, {
+        baseUrl: 'https://meister-reports-fork.mitac31709.workers.dev'
+      });
+      console.log('notify-cron-dispatch', JSON.stringify(summary));
     })());
   }
 };

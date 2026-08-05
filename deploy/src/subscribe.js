@@ -79,6 +79,21 @@ export async function listSubscriptions(env) {
   return out;
 }
 
+/** 購読 id だけ列挙（封印を解かない。Cron の振り分け用）。 */
+export async function listSubscriptionIds(env) {
+  const ids = [];
+  let cursor;
+  do {
+    const page = await env.NOTIFY_SUBS.list({ prefix: PREFIX, cursor });
+    for (const key of page.keys || []) {
+      const id = String(key.name || '').slice(PREFIX.length);
+      if (id) ids.push(id);
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return ids;
+}
+
 /** ログイン中のセッションから購読を作る / 更新する。 */
 export function buildSubscription({
   id, cookie, webhookUrl, prev = null, now = new Date()

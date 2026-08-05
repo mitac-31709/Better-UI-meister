@@ -2,12 +2,21 @@
  *
  * 各購読について元アプリの未読を取り、新しいものだけ Discord へ送る。
  * ブラウザの Watcher と同じ差分ロジック（pickNewNotifications）を使う。
+ *
+ * CPU 削減:
+ *   - 未読件数が前回と同じ（または減った）ときは一覧 HTML のパースをしない
+ *   - Cron 本体は購読 id を列挙して 1 人ずつ HTTP に振り分け、
+ *     処理ごとの CPU 枠を分ける（Workers は呼び出し単位で CPU を数える）
  */
 
 import { forwardDiscord } from './discord.js';
 import { ApiError, html, unreadCount } from './meister.js';
 import { parseNotifications } from './parse-pages.js';
-import { listSubscriptions, putSubscription } from './subscribe.js';
+import {
+  listSubscriptionIds, listSubscriptions, putSubscription
+} from './subscribe.js';
+
+const ENC = new TextEncoder();
 
 /** クライアントの notify.js と同じ判定。Worker 側に複製して依存を切る。 */
 export function pickNewNotifications({ prev, count, notifications }) {
@@ -90,6 +99,34 @@ export function buildDiscordPayload(items, { origin } = {}) {
   return { username: 'MMS', content, embeds };
 }
 
+function b64url(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/** Cron → 1 人処理 HTTP の共有トークン（SESSION_SECRET から導出）。 */
+export async function cronTickToken(secret) {
+  if (!secret) throw new Error('SESSION_SECRET が必要です');
+  const dig = await crypto.subtle.digest('SHA-256', ENC.encode(`mms-cron-tick:${secret}`));
+  return b64url(new Uint8Array(dig));
+}
+
+export async function verifyCronTickToken(secret, provided) {
+  if (!provided || !secret) return false;
+  try {
+    const expected = await cronTickToken(secret);
+    if (expected.length !== String(provided).length) return false;
+    let diff = 0;
+    for (let i = 0; i < expected.length; i += 1) {
+      diff |= expected.charCodeAt(i) ^ String(provided).charCodeAt(i);
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
 /** 1 購読を処理する。結果の購読レコード（保存用）を返す。 */
 export async function processSubscription(sub, env, {
   unreadCountFn = unreadCount,
@@ -105,15 +142,30 @@ export async function processSubscription(sub, env, {
   try {
     const { count } = await unreadCountFn(sub.cookie);
     const n = typeof count === 'number' ? count : 0;
+    const prevCount = Number.isFinite(sub.count) ? sub.count : 0;
+    const stamp = now().toISOString();
+
+    // 件数不変・減少時は一覧パースを省略（CPU の大半はここ）。
+    // トレードオフ: 既読 1 + 新着 1 で件数が同じだと、次に件数が増えるまで気付かない。
+    if (sub.primed && n <= prevCount) {
+      return {
+        sub: {
+          ...sub,
+          count: n,
+          updatedAt: stamp,
+          lastOkAt: stamp,
+          lastError: null,
+          disabled: false
+        },
+        sent: 0,
+        skipped: false,
+        skippedParse: true
+      };
+    }
 
     let list = [];
-    try {
-      const body = await htmlFn(sub.cookie, '/notifications');
-      list = parseNotifications(body).notifications || [];
-    } catch (e) {
-      // 件数は取れても一覧が取れないときは件数だけで進めない（誤爆防止）
-      throw e;
-    }
+    const body = await htmlFn(sub.cookie, '/notifications');
+    list = parseNotifications(body).notifications || [];
 
     const result = pickNewNotifications({
       prev: { primed: sub.primed, count: sub.count, seenIds: sub.seenIds },
@@ -134,12 +186,12 @@ export async function processSubscription(sub, env, {
     const next = {
       ...sub,
       ...result.next,
-      updatedAt: now().toISOString(),
-      lastOkAt: now().toISOString(),
+      updatedAt: stamp,
+      lastOkAt: stamp,
       lastError: null,
       disabled: false
     };
-    return { sub: next, sent, skipped: false };
+    return { sub: next, sent, skipped: false, skippedParse: false };
   } catch (e) {
     const message = e instanceof ApiError
       ? `${e.status}: ${e.message}`
@@ -149,24 +201,62 @@ export async function processSubscription(sub, env, {
       ...sub,
       updatedAt: now().toISOString(),
       lastError: message.slice(0, 300),
-      // セッション失効は止める。Webhook 失敗は次の Cron で再試行。
       disabled: authFailed
     };
     return { sub: next, sent: 0, skipped: false, error: message };
   }
 }
 
+/** テスト用。本番 Cron は 1 人ずつ HTTP に振り分ける。 */
 export async function runBackgroundNotify(env, deps = {}) {
   const subs = await listSubscriptions(env);
-  const summary = { checked: 0, sent: 0, errors: 0, disabled: 0 };
+  const summary = { checked: 0, sent: 0, errors: 0, disabled: 0, skippedParse: 0 };
 
   for (const sub of subs) {
     summary.checked += 1;
     const result = await processSubscription(sub, env, deps);
     await putSubscription(env, result.sub);
     summary.sent += result.sent || 0;
+    if (result.skippedParse) summary.skippedParse += 1;
     if (result.error) summary.errors += 1;
     if (result.sub.disabled) summary.disabled += 1;
+  }
+
+  return summary;
+}
+
+/**
+ * Cron から購読 id ごとに別リクエストを起こす。
+ * Workers の CPU は呼び出し単位なので、1 人ずつ処理枠を分けられる。
+ * （動的に「1 人 1 Cron」を増やすことはできない。Free は Cron 5 本まで。）
+ */
+export async function dispatchCronTicks(env, ctx, {
+  baseUrl = 'https://meister-reports-fork.mitac31709.workers.dev',
+  listIds,
+  fetchFn = fetch
+} = {}) {
+  const ids = listIds || await listSubscriptionIds(env);
+  const token = await cronTickToken(env.SESSION_SECRET);
+  const base = String(baseUrl).replace(/\/$/, '');
+  const summary = { dispatched: 0, ids: ids.length };
+
+  for (const id of ids) {
+    summary.dispatched += 1;
+    const task = fetchFn(`${base}/api/notify/cron-tick`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Cron-Tick': token
+      },
+      body: JSON.stringify({ id })
+    }).then(async (res) => {
+      const text = await res.text();
+      console.log('cron-tick', id, res.status, text.slice(0, 200));
+    }).catch((e) => {
+      console.error('cron-tick failed', id, e.message || e);
+    });
+    if (ctx?.waitUntil) ctx.waitUntil(task);
+    else await task;
   }
 
   return summary;
