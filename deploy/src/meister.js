@@ -4,7 +4,7 @@
  * `/notifications/unread_count` だけ。他の画面は HTML を取って parse 側で JSON にする。
  *
  * セッションは**利用者ごと**。Worker 側に共有のログイン状態を持たない。
- * 誰かのセッションを他の利用者に見せないため、ここではキャッシュを一切しない。
+ * 画面 JSON のキャッシュは `page-cache.js` がセッション区画で行う（ここではしない）。
  */
 
 import { authenticityToken, looksLikeSignIn } from './parse.js';
@@ -107,8 +107,8 @@ export async function signIn(email, password) {
  *
  * ここでできるのは、サインアウトを element として成立させ、
  * こちらが持っている Cookie を匿名のものに差し替えることまで。
- * 併せて自ドメインの Cookie を消し（呼び出し側）、封印トークンの有効期限を
- * 短くしてある（`session.js`）。結果は握り潰さず応答に載せる。
+ * 併せて自ドメインの Cookie を消す（呼び出し側）。
+ * 結果は握り潰さず応答に載せる。
  */
 export async function signOut(cookie) {
   try {

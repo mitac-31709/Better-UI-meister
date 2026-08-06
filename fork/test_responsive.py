@@ -140,7 +140,7 @@ def check_data_source(page, base: str) -> None:
     check(page.is_visible("#data-source"), "データの出どころが表示されていない")
     note = page.inner_text("#data-source")
     kind = page.get_attribute("#data-source", "data-kind")
-    check(kind in ("live", "demo"), f"data-kind が想定外: {kind}")
+    check(kind in ("live", "cache", "stale", "demo"), f"data-kind が想定外: {kind}")
     if kind == "demo":
         check("デモデータ" in note, f"デモなのに表示が {note!r}")
     print(f"  出どころ: {kind} — {note}")

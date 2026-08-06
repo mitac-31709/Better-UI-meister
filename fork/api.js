@@ -2,14 +2,28 @@
  *
  * 元アプリは JSON をほとんど返さないので、Worker が HTML を JSON に変換している。
  * ここはその口を呼ぶだけ。デモモードのときは `demo.js` が同じ形を返す。
+ *
+ * opts.refresh === true のときは Worker に元アプリ再取得を強制する
+ * （キャッシュ表示のあと、クライアントがライブ更新するとき）。
  */
 
 export class Unauthenticated extends Error {}
 
 async function request(path, init = {}) {
-  const res = await fetch(path, {
-    ...init,
-    headers: { Accept: 'application/json', ...(init.headers || {}) }
+  const refresh = Boolean(init.refresh);
+  const opts = { ...init };
+  delete opts.refresh;
+
+  let url = path;
+  if (refresh) {
+    const u = new URL(path, location.origin);
+    u.searchParams.set('refresh', '1');
+    url = u.pathname + u.search;
+  }
+
+  const res = await fetch(url, {
+    ...opts,
+    headers: { Accept: 'application/json', ...(opts.headers || {}) }
   });
 
   let body = null;
@@ -33,12 +47,12 @@ export const api = {
   }),
   logout: () => request('/api/session', { method: 'DELETE' }),
 
-  dashboard: () => request('/api/dashboard'),
-  reports: () => request('/api/reports'),
-  orders: () => request('/api/orders'),
-  equipments: () => request('/api/equipments'),
-  loans: () => request('/api/loans'),
-  notifications: () => request('/api/notifications'),
+  dashboard: (opts) => request('/api/dashboard', opts),
+  reports: (opts) => request('/api/reports', opts),
+  orders: (opts) => request('/api/orders', opts),
+  equipments: (opts) => request('/api/equipments', opts),
+  loans: (opts) => request('/api/loans', opts),
+  notifications: (opts) => request('/api/notifications', opts),
   unreadCount: () => request('/api/notifications/unread_count'),
 
   /** Discord Incoming Webhook へ Worker 経由で送る。即時中継（URL は残さない）。 */
@@ -55,7 +69,7 @@ export const api = {
     body: JSON.stringify({ webhookUrl, id })
   }),
 
-  /** 開いている間に Rails Cookie を購読へ書き戻す。 */
+  /** 開いている間に Rails Cookie を書き戻す。 */
   refreshNotifySubscription: (id) => request('/api/notify/subscribe', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },

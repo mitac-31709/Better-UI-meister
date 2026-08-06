@@ -397,6 +397,8 @@ button { font: inherit; color: inherit; }
   background: var(--color-rule-2);
 }
 .datasource[data-kind="live"]::before { background: var(--color-accent); }
+.datasource[data-kind="cache"]::before { background: var(--color-accent); }
+.datasource[data-kind="stale"]::before { background: var(--color-warn); }
 .datasource[data-kind="demo"]::before { background: var(--color-warn); }
 
 .loading {

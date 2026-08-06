@@ -5,18 +5,79 @@
  *
  * 形は API の応答に合わせる。画面側が 1 本の描画経路で済むようにするため。
  * 語彙は元アプリで確認できた範囲だけを使う（`../clone/NOTES.md`）。
- * ステータスは 未完了 / 完了 の 2 値だけ。中間状態を勝手に作らない。
  *
- * 期限の残り日数を出すため基準日を固定する。実データのときは当日を使う。
+ * キャッシュ戦略（SWR・裏更新・先読み）もデモで触れるよう、短い遅延と
+ * 鮮度帯で Worker 側と同じ `source` / `revalidating` を返す。
  */
 
 export const DEMO_TODAY = '2026-08-05';
 export const DEMO_USER = { name: '三谷 慧介', badge: 'U' };
 
-const iso = (s) => s;
+/** デモ用。本番（45s）より短くし、キャッシュ→裏更新をすぐ確認できるようにする。 */
+export const DEMO_FRESH_MS = 8_000;
+/** 初回ミス / refresh 時の「元アプリが遅い」感。 */
+export const DEMO_ORIGIN_MS = 700;
 
-function wrap(payload) {
-  return { source: 'demo', fetchedAt: new Date().toISOString(), ...payload };
+const YEAR = '2026';
+const iso = (s) => s;
+const md = (v) => v.replace('-', '/');
+
+const entries = new Map();
+const generations = new Map();
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function resetDemoCache() {
+  entries.clear();
+  generations.clear();
+}
+
+function nextGeneration(key) {
+  const n = (generations.get(key) || 0) + 1;
+  generations.set(key, n);
+  return n;
+}
+
+/**
+ * Worker の page-cache と同じ見え方にする。
+ * - 未取得: 古いキャッシュを即返し + revalidating（裏更新デモ）
+ * - 新しい: source=cache
+ * - 鮮度切れ: revalidating
+ * - refresh: 遅延のあと live（世代を進めて差分を見えるようにする）
+ */
+async function cached(key, build, opts = {}) {
+  if (opts.refresh) {
+    await sleep(DEMO_ORIGIN_MS);
+    const generation = nextGeneration(key);
+    const payload = build({ generation });
+    const fetchedAt = new Date().toISOString();
+    entries.set(key, { payload, at: Date.now(), fetchedAt, generation });
+    return { source: 'live', fetchedAt, ...payload };
+  }
+
+  let entry = entries.get(key);
+  if (!entry) {
+    const generation = nextGeneration(key);
+    const payload = build({ generation });
+    const fetchedAt = new Date(Date.now() - 60_000).toISOString();
+    entry = { payload, at: Date.now() - DEMO_FRESH_MS - 1_000, fetchedAt, generation };
+    entries.set(key, entry);
+    return { source: 'cache', fetchedAt, revalidating: true, ...payload };
+  }
+
+  const age = Date.now() - entry.at;
+  if (age < DEMO_FRESH_MS) {
+    return { source: 'cache', fetchedAt: entry.fetchedAt, ...entry.payload };
+  }
+
+  return {
+    source: 'cache',
+    fetchedAt: entry.fetchedAt,
+    revalidating: true,
+    ...entry.payload
+  };
 }
 
 // ── 週報 ───────────────────────────────────────────
@@ -50,10 +111,7 @@ const REPORT_SEED = [
   [115, '第15週 週報', '08-03', '08-09', '08-12', '08-03', '未完了', '']
 ];
 
-const YEAR = '2026';
-const md = (v) => v.replace('-', '/');
-
-export function demoReports() {
+function buildReports() {
   const reports = REPORT_SEED.map(([id, title, from, to, due, created, status, body, lockedBy]) => ({
     id,
     title,
@@ -69,7 +127,7 @@ export function demoReports() {
     lockedBy: lockedBy || null
   }));
 
-  return wrap({
+  return {
     columns: [
       { label: 'タイトル' }, { label: '期間' }, { label: 'ステータス' },
       { label: '期限' }, { label: '作成日' }
@@ -84,16 +142,25 @@ export function demoReports() {
       body: '管理者によって新しいレポートの締め切りが設定されると、ここにレポートが表示されます。'
     },
     reports
-  });
+  };
+}
+
+export function demoReports(opts = {}) {
+  return cached('reports', buildReports, opts);
 }
 
 // ── ダッシュボード ──────────────────────────────────
-export function demoDashboard() {
-  return wrap({
+function buildDashboard({ generation = 1 } = {}) {
+  return {
     heading: 'ダッシュボード',
     team: 'チーム: 10(未定)',
-    notice: '調整中'
-  });
+    // 再取得のたびに文言が変わり、ライブ更新が見える
+    notice: generation <= 1 ? '調整中' : `調整中 · デモ再取得 #${generation}`
+  };
+}
+
+export function demoDashboard(opts = {}) {
+  return cached('dashboard', buildDashboard, opts);
 }
 
 // ── 注文 ───────────────────────────────────────────
@@ -106,7 +173,7 @@ const ORDER_SEED = [
   [26, '切削油 1L', 1750, 2, '07-10', '完了']
 ];
 
-export function demoOrders() {
+function buildOrders({ generation = 1 } = {}) {
   const orders = ORDER_SEED.map(([id, product, unitPrice, quantity, created, status]) => ({
     id,
     product,
@@ -121,21 +188,32 @@ export function demoOrders() {
     totalValue: unitPrice * quantity
   }));
 
-  return wrap({
+  return {
     columns: [
       { label: '商品' }, { label: '単価' }, { label: '数量' },
       { label: '合計' }, { label: 'ステータス' }, { label: '作成日' }
     ],
-    empty: { title: '注文がありません', body: '新しい注文を作成して始めましょう。' },
+    empty: {
+      title: '注文がありません',
+      body: generation <= 1
+        ? '新しい注文を作成して始めましょう。'
+        : `新しい注文を作成して始めましょう。（デモ再取得 #${generation}）`
+    },
     orders
-  });
+  };
+}
+
+export function demoOrders(opts = {}) {
+  return cached('orders', buildOrders, opts);
 }
 
 // ── 機材 ───────────────────────────────────────────
-export function demoEquipments() {
-  return wrap({
+function buildEquipments({ generation = 1 } = {}) {
+  return {
     heading: '利用可能な機材',
-    lede: '貸出申請可能な機材一覧',
+    lede: generation <= 1
+      ? '貸出申請可能な機材一覧'
+      : `貸出申請可能な機材一覧（デモ再取得 #${generation}）`,
     empty: { text: '現在利用可能な機材はありません。' },
     equipments: [
       { id: 3, name: 'デジタルノギス 150mm', meta: '計測 · 在庫 2', action: null },
@@ -143,14 +221,20 @@ export function demoEquipments() {
       { id: 8, name: '卓上ボール盤', meta: '加工 · 在庫 1', action: null },
       { id: 11, name: '熱電対データロガー', meta: '計測 · 在庫 3', action: null }
     ]
-  });
+  };
+}
+
+export function demoEquipments(opts = {}) {
+  return cached('equipments', buildEquipments, opts);
 }
 
 // ── 貸出 ───────────────────────────────────────────
-export function demoLoans() {
-  return wrap({
+function buildLoans({ generation = 1 } = {}) {
+  return {
     heading: '機材貸出',
-    lede: 'チームの現在と過去の機材貸出を確認できます',
+    lede: generation <= 1
+      ? 'チームの現在と過去の機材貸出を確認できます'
+      : `チームの現在と過去の機材貸出を確認できます（デモ再取得 #${generation}）`,
     sections: [
       {
         key: 'pending',
@@ -168,14 +252,18 @@ export function demoLoans() {
         ]
       }
     ]
-  });
+  };
+}
+
+export function demoLoans(opts = {}) {
+  return cached('loans', buildLoans, opts);
 }
 
 // ── 通知 ───────────────────────────────────────────
-export function demoNotifications() {
-  return wrap({
+function buildNotifications({ generation = 1 } = {}) {
+  return {
     heading: '通知',
-    unreadText: '未読 2 件',
+    unreadText: generation <= 1 ? '未読 2 件' : `未読 2 件 · デモ再取得 #${generation}`,
     empty: { title: '通知はありません', body: '新しい通知が届くとここに表示されます。' },
     notifications: [
       {
@@ -194,5 +282,16 @@ export function demoNotifications() {
         atISO: `${YEAR}-07-26`, read: true
       }
     ]
-  });
+  };
+}
+
+export function demoNotifications(opts = {}) {
+  return cached('notifications', buildNotifications, opts);
+}
+
+/** バッジ用。キャッシュを通さず件数だけ返す。 */
+export function demoUnreadCount() {
+  return {
+    count: buildNotifications().notifications.filter((n) => n.read === false).length
+  };
 }

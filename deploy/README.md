@@ -40,10 +40,27 @@ Worker は資格情報を保存しない。共有の資格情報も持たない�
 4. 以降の `/api/*` はその Cookie を解いて元アプリを叩く
 
 資格情報は 2 の中継にしか使わず、どこにも保存しない。鍵は `SESSION_SECRET`。
-Worker 側に状態を持たないので KV も D1 も要らない。
+Worker 側にログイン状態を持たないので、認証用の KV / D1 は要らない。
 
-**取得結果はキャッシュしない。** 利用者ごとの内容なので、Worker のアイソレートに
-共有で置くと他人のデータが混ざる。
+### 画面データのキャッシュ（stale-while-revalidate）
+
+元アプリが遅くても、**2 回目以降はキャッシュを即返し**、裏で取り直す。
+
+| 条件 | 挙動 | `source` |
+| --- | --- | --- |
+| キャッシュが新しい（45 秒以内） | そのまま返す | `cache` |
+| やや古い（〜1 時間） | 返して裏で再取得 | `cache` |
+| かなり古い（〜6 時間） | 返して裏で再取得 | `stale` |
+| 無い / 期限切れ | 元アプリを待つ。失敗時は最後の成功分 | `live` / `stale` |
+
+区画は**セッション Cookie の SHA-256**。共有キャッシュに他人のデータを載せない。
+ブラウザ向け応答は従来どおり `Cache-Control: no-store`。
+注文作成とログアウトで該当区画を消す。実装は `src/page-cache.js`。
+
+裏で取り直している応答には `revalidating: true` が付く。クライアントは
+`?refresh=1` で元アプリ再取得を待ち、取れたら画面を差し替える。
+また、画面を開いたとき Worker はレールから行ける他画面を裏で温める。
+クライアント側もタブ内メモリと先読みで遷移を速くする（`fork/page-store.js`）。
 
 ### ログアウトの限界（元アプリの性質）
 
@@ -55,13 +72,14 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 サインアウト前に保存した古い Cookie で /reports → 200
 ```
 
-サーバ側に破棄できる状態が無いので、ここでは直せない。できるのは次の 3 つ。
+サーバ側に破棄できる状態が無いので、ここでは直せない。できるのは次の 2 つ。
 
 - 元アプリのサインアウトを成立させ、結果を `DELETE /api/session` の応答に載せる
   （`originSignedOut`）。黙って失敗させない
 - 自ドメインの Cookie を確実に消す
-- 封印トークンの有効期限を **4 時間**に切って露出する時間を短くする
 
+封印トークン側に独自の有効期限は付けない。実効の失効は元アプリのセッションと
+ログアウト、`SESSION_SECRET` の差し替えに委ねる。
 `mms_session` は `HttpOnly` なのでページの JavaScript からは読めない。
 
 ## API
@@ -86,7 +104,11 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 | `POST` | `/api/notify/cron-tick` | Cron から 1 購読を処理（内部トークン必須） |
 | `GET` | `/api/health` | 設定の確認（秘密は返さない） |
 
-画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。例（`/api/orders`）:
+画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。
+`source` は `live`（元アプリから取得） / `cache`（利用者区画のキャッシュ） /
+`stale`（古いまま返した／元アプリ失敗時の救済）。
+裏更新中は `revalidating: true`。クライアントのライブ更新は `?refresh=1`。
+例（`/api/orders`）:
 
 ```json
 {
@@ -146,6 +168,7 @@ Discord の即時中継は `POST /api/notify/discord`（ログイン必須）。
 | `src/parse-guard.js` | パース結果が想定どおりかの検査と Discord 本文 |
 | `src/meister.js` | Devise ログイン／サインアウト、HTML 取得、注文作成 |
 | `src/session.js` | セッション Cookie の封印と開封（AES-GCM） |
+| `src/page-cache.js` | 利用者区画の stale-while-revalidate |
 | `src/discord.js` | Discord Webhook URL の検証と転送 |
 | `src/subscribe.js` | バックグラウンド購読の KV 読み書き |
 | `src/background.js` | Cron から回す未読差分 → Discord |
@@ -156,6 +179,7 @@ Discord の即時中継は `POST /api/notify/discord`（ログイン必須）。
 | `test/parse-pages.test.mjs` | 他 5 画面のパーサを実 HTML で検証 |
 | `test/parse-guard.test.mjs` | 想定外 HTML の検出と Discord 本文 |
 | `test/notify.test.mjs` | Discord 中継と通知差分の純関数 |
+| `test/page-cache.test.mjs` | 利用者区画キャッシュの SWR |
 | `test/background.test.mjs` | バックグラウンド差分・ペイロードの純関数 |
 | `test/cpu-budget.mjs` | Cron 1 回あたりの CPU 概算（`MATRIX=1` で行列） |
 | `test/api.test.mjs` | 動いているエンドポイントに対して検証 |
@@ -201,7 +225,7 @@ printf '%s' 'https://discord.com/api/webhooks/…' \
 
 ```bash
 # パーサ（ネットワーク不要）
-node --test test/parse.test.mjs test/parse-pages.test.mjs test/parse-guard.test.mjs test/notify.test.mjs
+node --test test/parse.test.mjs test/parse-pages.test.mjs test/parse-guard.test.mjs test/notify.test.mjs test/page-cache.test.mjs
 
 # API。元アプリに実際にログインするので資格情報が必要
 MEISTER_EMAIL=... MEISTER_PASSWORD=... node --test test/api.test.mjs

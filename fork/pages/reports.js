@@ -22,8 +22,8 @@ export const meta = { route: '/reports', nav: '週報', title: '週報一覧' };
 const SORT_KEYS = ['title', 'periodStart', 'status', 'due', 'createdAt'];
 const state = { q: '', status: 'all', sortKey: 'due', sortDir: 'asc', selectedId: null };
 
-export async function load(ctx) {
-  return ctx.demo ? demoReports() : api.reports();
+export async function load(ctx, opts = {}) {
+  return ctx.demo ? demoReports() : api.reports(opts);
 }
 
 export function render(data, ctx) {

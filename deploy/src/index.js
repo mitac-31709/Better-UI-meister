@@ -12,6 +12,7 @@
  *
  * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で封印して
  * 自ドメインの Cookie に入れる（`src/session.js`）。
+ * 画面 JSON は利用者区画の stale-while-revalidate（`src/page-cache.js`）。
  * バックグラウンド配信用に、同じ封印で「Rails Cookie + Webhook URL」を
  * KV（NOTIFY_SUBS）へ置く。Discord オフまたはログアウトで消す。
  *
@@ -24,6 +25,10 @@ import {
 } from './background.js';
 import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './discord.js';
 import { ApiError, createOrder, html, signIn, signOut, unreadCount } from './meister.js';
+import {
+  FRESH_MS, PAGE_CACHE_PATHS, STALE_WHILE_REVALIDATE_MS,
+  freshness, pageCache, userCacheKey
+} from './page-cache.js';
 import { parseReportsPage } from './parse.js';
 import {
   parseDashboard, parseEquipments, parseLoans, parseNotifications,
@@ -31,7 +36,7 @@ import {
 } from './parse-pages.js';
 import { buildParseAlertPayload, inspectParse } from './parse-guard.js';
 import {
-  SESSION_MAX_AGE_MS, clearCookieHeader, currentSession, seal, setCookieHeader
+  clearCookieHeader, currentSession, seal, setCookieHeader
 } from './session.js';
 import {
   buildSubscription, deleteSubscription, getSubscription, putSubscription
@@ -101,7 +106,7 @@ async function alertParseAnomaly(env, { path, origin, reasons, html: body, error
 }
 
 /** 元アプリの 1 画面を取って JSON にする。想定外なら Discord へ知らせる。 */
-async function page(cookie, path, parse, env) {
+async function pageLive(cookie, path, parse, env) {
   const body = await html(cookie, path);
   const origin = `https://meister.tokyo-ct.org${path}`;
   let parsed;
@@ -128,6 +133,48 @@ async function page(cookie, path, parse, env) {
   };
 }
 
+/** 利用者区画のキャッシュ付き。遅延はミス時だけ。 */
+async function page(cookie, path, parse, env, ctx, { refresh = false } = {}) {
+  const userKey = await userCacheKey(cookie);
+  const result = await pageCache.load({
+    userKey,
+    path,
+    ctx: refresh ? null : ctx, // refresh は自分で待つ。二重の waitUntil 再取得は不要
+    mode: refresh ? 'refresh' : 'swr',
+    fetchFresh: () => pageLive(cookie, path, parse, env)
+  });
+
+  // 今の画面から行ける他画面を裏で温めておく（レールの全画面）
+  if (!refresh && ctx?.waitUntil) {
+    ctx.waitUntil(warmReachable(cookie, path, env).catch((e) => {
+      console.error('warmReachable failed:', e?.message || e);
+    }));
+  }
+
+  return result;
+}
+
+/** 現在画面以外の一覧を Cache API に載せる。既に新しければ飛ばす。 */
+async function warmReachable(cookie, currentPath, env) {
+  const userKey = await userCacheKey(cookie);
+  for (const [originPath, parse] of Object.values(PAGES)) {
+    if (originPath === currentPath) continue;
+    const cached = await pageCache.read(userKey, originPath);
+    const band = freshness(cached);
+    if (band === 'fresh' || band === 'revalidate') continue;
+    try {
+      await pageCache.load({
+        userKey,
+        path: originPath,
+        mode: 'swr',
+        fetchFresh: () => pageLive(cookie, originPath, parse, env)
+      });
+    } catch (e) {
+      console.error('warm page failed:', originPath, e?.message || e);
+    }
+  }
+}
+
 async function handleSessionCreate(request, env) {
   let body;
   try {
@@ -148,7 +195,7 @@ async function handleSessionCreate(request, env) {
   }
 
   const token = await seal(
-    { cookie, name: user.name, badge: user.badge, exp: Date.now() + SESSION_MAX_AGE_MS },
+    { cookie, name: user.name, badge: user.badge },
     env.SESSION_SECRET
   );
   return json({ user }, 200, { 'Set-Cookie': setCookieHeader(token) });
@@ -156,6 +203,10 @@ async function handleSessionCreate(request, env) {
 
 async function handleSessionDelete(request, env) {
   const session = await currentSession(request, env);
+  if (session?.cookie) {
+    const userKey = await userCacheKey(session.cookie);
+    await pageCache.invalidate(userKey, PAGE_CACHE_PATHS);
+  }
   const result = session?.cookie ? await signOut(session.cookie) : { ok: true };
   return json({ ok: true, originSignedOut: result.ok, reason: result.reason ?? null },
     200, { 'Set-Cookie': clearCookieHeader() });
@@ -213,13 +264,16 @@ async function handleOrderCreate(request, env) {
       {
         cookie: result.cookie,
         name: session.name,
-        badge: session.badge,
-        exp: Date.now() + SESSION_MAX_AGE_MS
+        badge: session.badge
       },
       env.SESSION_SECRET
     );
     headers['Set-Cookie'] = setCookieHeader(token);
   }
+
+  // 注文一覧・ダッシュボードはすぐ古くなるので利用者区画だけ落とす。
+  const userKey = await userCacheKey(result.cookie || session.cookie);
+  await pageCache.invalidate(userKey, ['/orders', '/dashboard']);
 
   return json({
     ok: true,
@@ -363,7 +417,7 @@ async function handleCronTick(request, env) {
   });
 }
 
-async function handleApi(request, url, env) {
+async function handleApi(request, url, env, ctx) {
   const path = url.pathname;
 
   if (path === '/api/session') {
@@ -379,6 +433,12 @@ async function handleApi(request, url, env) {
       origin: 'https://meister.tokyo-ct.org',
       sessionSecret: Boolean(env.SESSION_SECRET),
       auth: 'per-user',
+      cache: {
+        strategy: 'stale-while-revalidate',
+        scope: 'per-session',
+        freshMs: FRESH_MS,
+        staleWhileRevalidateMs: STALE_WHILE_REVALIDATE_MS
+      },
       notify: {
         discordProxy: true,
         background: Boolean(env.NOTIFY_SUBS),
@@ -431,22 +491,37 @@ async function handleApi(request, url, env) {
   }
 
   if (path === '/api/notifications/unread_count') {
-    return json(await unreadCount(session.cookie));
+    const userKey = await userCacheKey(session.cookie);
+    const data = await pageCache.load({
+      userKey,
+      path: '/notifications/unread_count',
+      ctx,
+      fetchFresh: async () => {
+        const unread = await unreadCount(session.cookie);
+        return {
+          source: 'live',
+          fetchedAt: new Date().toISOString(),
+          ...unread
+        };
+      }
+    });
+    return json(data);
   }
 
   const target = PAGES[path];
   if (!target) return json({ error: 'そのような口はありません' }, 404);
-  return json(await page(session.cookie, target[0], target[1], env));
+  const refresh = url.searchParams.get('refresh') === '1';
+  return json(await page(session.cookie, target[0], target[1], env, ctx, { refresh }));
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
-      return await handleApi(request, url, env);
+      return await handleApi(request, url, env, ctx);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 500;
       const payload = { error: e.message || String(e) };

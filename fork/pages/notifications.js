@@ -19,8 +19,8 @@ import { emptyBlock, h, metaList, panel } from '../ui.js';
 
 export const meta = { route: '/notifications', nav: '通知', title: '通知' };
 
-export async function load(ctx) {
-  return ctx.demo ? demoNotifications() : api.notifications();
+export async function load(ctx, opts = {}) {
+  return ctx.demo ? demoNotifications() : api.notifications(opts);
 }
 
 export function render(data, ctx) {

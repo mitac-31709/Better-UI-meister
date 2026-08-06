@@ -6,12 +6,15 @@
  * Worker 側に状態を置かず、Rails の Cookie を AES-GCM で暗号化して
  * 自ドメインの Cookie に入れる。鍵は `SESSION_SECRET`。
  * 平文の資格情報は保存しない。ログインのときに元アプリへ中継するだけ。
+ *
+ * 封印トークン側に独自の有効期限は付けない。実効の失効は元アプリの
+ * セッションとログアウト、鍵の差し替えに委ねる。
  */
 
 const COOKIE = 'mms_session';
-/* 元アプリは cookie_store なのでサインアウトで発行済み Cookie を無効化できない。
-   露出する時間を短くするため、封印トークン側の期限を短く切る。 */
-const MAX_AGE = 4 * 60 * 60;
+/* ブラウザが Cookie を保持する上限。Chromium 系の実用上限に合わせる。
+   以前の 4 時間制限は撤廃済み。期限切れ判定は封印ペイロードでは行わない。 */
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 400;
 const ENC = new TextEncoder();
 const DEC = new TextDecoder();
 
@@ -52,10 +55,10 @@ export async function unseal(token, secret) {
       await key(secret), b64urlDecode(boxPart));
     const payload = JSON.parse(DEC.decode(plain));
     if (!payload?.cookie) return null;
-    if (payload.exp && Date.now() > payload.exp) return null;
+    // 旧トークンに付いていた exp は無視する（4 時間制限の撤廃）
     return payload;
   } catch {
-    // 鍵替え・改竄・期限切れはすべて「ログインしていない」として扱う
+    // 鍵替え・改竄は「ログインしていない」として扱う
     return null;
   }
 }
@@ -67,14 +70,12 @@ export function readCookie(request) {
 }
 
 export function setCookieHeader(token) {
-  return `${COOKIE}=${token}; Path=/; Max-Age=${MAX_AGE}; HttpOnly; Secure; SameSite=Lax`;
+  return `${COOKIE}=${token}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`;
 }
 
 export function clearCookieHeader() {
   return `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`;
 }
-
-export const SESSION_MAX_AGE_MS = MAX_AGE * 1000;
 
 /** ログイン中の利用者を返す。していなければ null。 */
 export async function currentSession(request, env) {
