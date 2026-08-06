@@ -83,6 +83,7 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 | `POST` | `/api/notify/subscribe` | バックグラウンド購読を登録（KV） |
 | `PATCH` | `/api/notify/subscribe` | 購読の Rails Cookie を更新 |
 | `DELETE` | `/api/notify/subscribe` | 購読を削除 |
+| `POST` | `/api/notify/cron-tick` | Cron から 1 購読を処理（内部トークン必須） |
 | `GET` | `/api/health` | 設定の確認（秘密は返さない） |
 
 画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。例（`/api/orders`）:
@@ -114,7 +115,8 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 
 1. Discord 保存成功後、`POST /api/notify/subscribe` が Rails セッション Cookie と Webhook URL を
    `SESSION_SECRET` で封印して KV（`NOTIFY_SUBS`）へ置く
-2. Cron（`0 * * * *` = 毎時）が購読を見て未読を取り、新しいものだけ Discord へ送る
+2. Cron（`0 * * * *` = 毎時）が購読 id を列挙し、**1 人ずつ** `/api/notify/cron-tick` へ振り分ける
+   （Workers の CPU は呼び出し単位。動的に「1 人 1 Cron」は増やせないが、別 HTTP で枠を分けられる）
 3. タブを開いている間はポーリングのついでに Cookie を書き戻し、寿命を延ばす
 4. Discord オフ・ログアウトで購読を削除する
 
@@ -124,9 +126,10 @@ Worker 側に状態を持たないので KV も D1 も要らない。
 ### Cron の CPU 時間
 
 Cloudflare Workers の Cron は **Free で 10 ms / 回**、**Paid かつ間隔 ≥ 1 時間なら最大 15 分 / 回**。
-`fetch` 待ちは CPU に含まれない。`test/cpu-budget.mjs` でパース・差分・封印を測った結果は
-`artifacts/CPU_BUDGET.md`（生データ `artifacts/cpu-budget.json`）。少数購読なら Free でも足り、
-極端な規模（例: 購読 25 × 通知 100）だけ Free を超える見込み。
+HTTP リクエストも Free では **10 ms / 回**。`fetch` 待ちは CPU に含まれない。
+
+Cron 本体は id 列挙＋振り分けだけにし、実処理（一覧パース含む）は 1 人 1 リクエストに分ける。
+`test/cpu-budget.mjs` の行列は `artifacts/CPU_BUDGET.md`。
 
 未読件数のブラウザ側ポーリングは表示中 60 秒・非表示 5 分。初回の観測は基準値にする
 だけで送らない（ログイン直後に既存の未読をまとめて飛ばさない）。バックグラウンド登録時も同様。

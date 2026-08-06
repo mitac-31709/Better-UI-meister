@@ -95,6 +95,17 @@ describe('processSubscription', () => {
   });
 });
 
+describe('cronTickToken', () => {
+  test('同じ秘密なら同じトークン', async () => {
+    const { cronTickToken, verifyCronTickToken } = await import('../src/background.js');
+    const a = await cronTickToken('secret-a');
+    const b = await cronTickToken('secret-a');
+    assert.equal(a, b);
+    assert.equal(await verifyCronTickToken('secret-a', a), true);
+    assert.equal(await verifyCronTickToken('secret-a', 'nope'), false);
+  });
+});
+
 describe('buildDiscordPayload (background)', () => {
   test('フッターにバックグラウンドと書く', () => {
     const p = buildDiscordPayload([{ id: 1, title: 't', body: 'b' }]);
