@@ -31,8 +31,8 @@ const SALES_SITES = [
 
 const numeric = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-export async function load(ctx) {
-  return ctx.demo ? demoOrders() : api.orders();
+export async function load(ctx, opts = {}) {
+  return ctx.demo ? demoOrders() : api.orders(opts);
 }
 
 export function render(data, ctx) {
@@ -527,7 +527,8 @@ export function render(data, ctx) {
       await api.createOrder(fields);
       panel.close();
       toasts.push(`「${fields.productName}」を作成しました`);
-      // 一覧を元アプリから取り直す。作成直後の id やステータスは HTML からしか分からない。
+      // 一覧・ダッシュボードのメモリを捨てて元アプリから取り直す。
+      ctx.invalidate?.(['/orders', '/dashboard']);
       ctx.reload();
     } catch (e) {
       showError(e.message || '注文を作成できませんでした');

@@ -23,8 +23,8 @@ const SHORTCUTS = [
   ['/notifications', '通知', '届いた知らせ']
 ];
 
-export async function load(ctx) {
-  return ctx.demo ? demoDashboard() : api.dashboard();
+export async function load(ctx, opts = {}) {
+  return ctx.demo ? demoDashboard() : api.dashboard(opts);
 }
 
 export function render(data, ctx) {

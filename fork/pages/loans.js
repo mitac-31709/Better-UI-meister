@@ -11,8 +11,8 @@ import { h } from '../ui.js';
 
 export const meta = { route: '/loans', nav: '貸出', title: '機材貸出' };
 
-export async function load(ctx) {
-  return ctx.demo ? demoLoans() : api.loans();
+export async function load(ctx, opts = {}) {
+  return ctx.demo ? demoLoans() : api.loans(opts);
 }
 
 export function render(data) {

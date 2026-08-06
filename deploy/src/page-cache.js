@@ -121,17 +121,18 @@ export function createPageCache(backend = {}) {
 
   /**
    * SWR: キャッシュがあれば即返し、必要なら裏で再取得。
+   * mode='refresh' のときは元を待って上書きする（クライアントのライブ更新用）。
    * @param {{
    *   userKey: string,
    *   path: string,
    *   fetchFresh: () => Promise<object>,
    *   ctx?: { waitUntil?: (p: Promise<unknown>) => void },
-   *   now?: number
+   *   now?: number,
+   *   mode?: 'swr' | 'refresh'
    * }} opts
    */
-  async function load({ userKey, path, fetchFresh, ctx, now = Date.now() }) {
+  async function load({ userKey, path, fetchFresh, ctx, now = Date.now(), mode = 'swr' }) {
     const cached = await read(userKey, path);
-    const band = freshness(cached, now);
 
     const refresh = () => coalesce(`${userKey}:${path}`, async () => {
       const fresh = await fetchFresh();
@@ -139,6 +140,18 @@ export function createPageCache(backend = {}) {
       await write(userKey, path, stored);
       return stored;
     });
+
+    if (mode === 'refresh') {
+      try {
+        const fresh = await refresh();
+        return withSource(fresh, 'live');
+      } catch (e) {
+        if (cached) return withSource(cached, 'stale');
+        throw e;
+      }
+    }
+
+    const band = freshness(cached, now);
 
     if (band === 'fresh') {
       return withSource(cached, 'cache');
@@ -150,10 +163,9 @@ export function createPageCache(backend = {}) {
         console.error('page-cache revalidate failed:', path, e?.message || e);
       }));
       else {
-        // waitUntil が無い環境（単体テスト等）では待たないが、投げっぱなしにもしない
         refresh().catch(() => {});
       }
-      return withSource(cached, source);
+      return { ...withSource(cached, source), revalidating: true };
     }
 
     // miss / expired: 元アプリを待つ。失敗したら最終手段で古いキャッシュ。

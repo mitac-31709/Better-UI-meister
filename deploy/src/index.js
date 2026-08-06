@@ -27,7 +27,7 @@ import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './disco
 import { ApiError, createOrder, html, signIn, signOut, unreadCount } from './meister.js';
 import {
   FRESH_MS, PAGE_CACHE_PATHS, STALE_WHILE_REVALIDATE_MS,
-  pageCache, userCacheKey
+  freshness, pageCache, userCacheKey
 } from './page-cache.js';
 import { parseReportsPage } from './parse.js';
 import {
@@ -134,14 +134,45 @@ async function pageLive(cookie, path, parse, env) {
 }
 
 /** 利用者区画のキャッシュ付き。遅延はミス時だけ。 */
-async function page(cookie, path, parse, env, ctx) {
+async function page(cookie, path, parse, env, ctx, { refresh = false } = {}) {
   const userKey = await userCacheKey(cookie);
-  return pageCache.load({
+  const result = await pageCache.load({
     userKey,
     path,
-    ctx,
+    ctx: refresh ? null : ctx, // refresh は自分で待つ。二重の waitUntil 再取得は不要
+    mode: refresh ? 'refresh' : 'swr',
     fetchFresh: () => pageLive(cookie, path, parse, env)
   });
+
+  // 今の画面から行ける他画面を裏で温めておく（レールの全画面）
+  if (!refresh && ctx?.waitUntil) {
+    ctx.waitUntil(warmReachable(cookie, path, env).catch((e) => {
+      console.error('warmReachable failed:', e?.message || e);
+    }));
+  }
+
+  return result;
+}
+
+/** 現在画面以外の一覧を Cache API に載せる。既に新しければ飛ばす。 */
+async function warmReachable(cookie, currentPath, env) {
+  const userKey = await userCacheKey(cookie);
+  for (const [originPath, parse] of Object.values(PAGES)) {
+    if (originPath === currentPath) continue;
+    const cached = await pageCache.read(userKey, originPath);
+    const band = freshness(cached);
+    if (band === 'fresh' || band === 'revalidate') continue;
+    try {
+      await pageCache.load({
+        userKey,
+        path: originPath,
+        mode: 'swr',
+        fetchFresh: () => pageLive(cookie, originPath, parse, env)
+      });
+    } catch (e) {
+      console.error('warm page failed:', originPath, e?.message || e);
+    }
+  }
 }
 
 async function handleSessionCreate(request, env) {
@@ -479,7 +510,8 @@ async function handleApi(request, url, env, ctx) {
 
   const target = PAGES[path];
   if (!target) return json({ error: 'そのような口はありません' }, 404);
-  return json(await page(session.cookie, target[0], target[1], env, ctx));
+  const refresh = url.searchParams.get('refresh') === '1';
+  return json(await page(session.cookie, target[0], target[1], env, ctx, { refresh }));
 }
 
 export default {

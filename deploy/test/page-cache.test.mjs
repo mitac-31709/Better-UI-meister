@@ -88,7 +88,7 @@ describe('page-cache SWR', () => {
     assert.equal(calls, 1);
   });
 
-  test('revalidate 帯は即返しつつ裏で更新する', async () => {
+  test('revalidate 帯は即返しつつ裏で更新し revalidating を付ける', async () => {
     const backend = memoryBackend();
     const cache = createPageCache(backend);
     const now = Date.now();
@@ -114,6 +114,7 @@ describe('page-cache SWR', () => {
       userKey: 'u1', path: '/reports', fetchFresh, ctx, now
     });
     assert.equal(served.source, 'cache');
+    assert.equal(served.revalidating, true);
     assert.equal(served.value, 'old');
     assert.equal(pending.length, 1);
 
@@ -121,6 +122,33 @@ describe('page-cache SWR', () => {
     await pending[0];
     const after = await cache.read('u1', '/reports');
     assert.equal(after.value, 'new');
+  });
+
+  test('mode=refresh は元を待って live を返す', async () => {
+    const backend = memoryBackend();
+    const cache = createPageCache(backend);
+    const now = Date.now();
+    await cache.write('u1', '/orders', {
+      source: 'live',
+      fetchedAt: new Date(now - 1000).toISOString(),
+      value: 'old'
+    });
+
+    let calls = 0;
+    const fresh = await cache.load({
+      userKey: 'u1',
+      path: '/orders',
+      mode: 'refresh',
+      now,
+      fetchFresh: async () => {
+        calls += 1;
+        return { source: 'live', fetchedAt: new Date(now).toISOString(), value: 'new' };
+      }
+    });
+    assert.equal(calls, 1);
+    assert.equal(fresh.source, 'live');
+    assert.equal(fresh.value, 'new');
+    assert.equal((await cache.read('u1', '/orders')).value, 'new');
   });
 
   test('元アプリ失敗時は古いキャッシュを stale で返す', async () => {

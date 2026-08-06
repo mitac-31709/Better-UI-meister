@@ -4,6 +4,9 @@
  * データは Worker の `/api/*` から取る。元アプリは Rails のサーバサイド
  * レンダリングで JSON をほとんど返さないので、Worker が HTML を JSON にしている。
  * `?demo=1` を付けたときと、`/api/*` が無い静的配信のときは同梱のデモデータに落ちる。
+ *
+ * キャッシュ表示のあとは `?refresh=1` で裏取得し、取れたら画面を差し替える。
+ * レールから行ける他画面は先読みして遷移を速くする。
  */
 
 import { Unauthenticated, api } from './api.js';
@@ -12,6 +15,9 @@ import { fmtTime } from './format.js';
 import {
   badgeLabel, clearState, createWatcher, loadPrefs, savePrefs, showBrowserNotification
 } from './notify.js';
+import {
+  contentChanged, forget, forgetAll, reachableRoutes, recall, remember
+} from './page-store.js';
 import { h, panel, wirePanel } from './ui.js';
 
 import * as dashboard from './pages/dashboard.js';
@@ -23,6 +29,7 @@ import * as notifications from './pages/notifications.js';
 
 const PAGES = [dashboard, orders, equipments, loans, reports, notifications];
 const BY_ROUTE = new Map(PAGES.map((p) => [p.meta.route, p]));
+const ALL_ROUTES = PAGES.map((p) => p.meta.route);
 const DEFAULT_ROUTE = '/dashboard';
 
 const el = {
@@ -48,7 +55,10 @@ const ctx = {
   get demo() { return isDemo(); },
   today: new Date(),
   navigate,
-  reload: () => render(currentRoute())
+  reload: () => render(currentRoute()),
+  invalidate: (routes) => {
+    for (const r of routes || []) forget(r);
+  }
 };
 ctx.today.setHours(0, 0, 0, 0);
 
@@ -65,13 +75,24 @@ function noteFor(data) {
   if (data?.source === 'live') {
     return ['live', `元アプリのデータ${at ? ` · ${at} 取得` : ''}`];
   }
-  if (data?.source === 'cache') {
+  if (data?.revalidating) {
     return ['cache', `キャッシュ${at ? ` · ${at} 取得` : ''}（裏で更新中）`];
+  }
+  if (data?.source === 'cache') {
+    return ['cache', `キャッシュ${at ? ` · ${at} 取得` : ''}`];
   }
   if (data?.source === 'stale') {
     return ['stale', `前回のデータ${at ? ` · ${at} 取得` : ''}（更新待ち）`];
   }
   return ['demo', 'デモデータ'];
+}
+
+function paint(route, data) {
+  const page = BY_ROUTE.get(route);
+  if (!page || !data) return;
+  const [kind, note] = noteFor(data);
+  setSource(kind, note);
+  el.view.replaceChildren(page.render(data, ctx));
 }
 
 // ── ルーティング ────────────────────────────────────
@@ -117,6 +138,7 @@ function errorBlock(message, onRetry) {
 }
 
 let renderToken = 0;
+let prefetchGen = 0;
 
 async function render(route) {
   const page = BY_ROUTE.get(route);
@@ -126,7 +148,11 @@ async function render(route) {
   markNav(route);
   panel.close({ silent: true });
   document.title = `${page.meta.title} — Meister Management System`;
-  el.view.replaceChildren(h('p', { class: 'loading', text: '読み込み中…' }));
+
+  // タブ内メモリがあれば即描画（遷移を待たせない）
+  const mem = recall(route);
+  if (mem) paint(route, mem);
+  else el.view.replaceChildren(h('p', { class: 'loading', text: '読み込み中…' }));
 
   let data;
   try {
@@ -134,15 +160,77 @@ async function render(route) {
   } catch (e) {
     if (token !== renderToken) return;
     if (e instanceof Unauthenticated) return showSignIn(e.message);
-    el.view.replaceChildren(errorBlock(e.message, () => render(route)));
-    setSource('demo', `元アプリから取得できず（${e.message}）`);
+    if (!mem) {
+      el.view.replaceChildren(errorBlock(e.message, () => render(route)));
+      setSource('demo', `元アプリから取得できず（${e.message}）`);
+    }
     return;
   }
   if (token !== renderToken) return;
 
-  const [kind, note] = noteFor(data);
-  setSource(kind, note);
-  el.view.replaceChildren(page.render(data, ctx));
+  remember(route, data);
+  if (contentChanged(mem, data) || !mem) paint(route, data);
+  else setSource(...noteFor(data));
+
+  // キャッシュ表示なら元を取り直して、取れたら画面を差し替える
+  if (!ctx.demo && (data.revalidating || data.source === 'stale')) {
+    liveRefresh(route, token);
+  }
+
+  if (!ctx.demo) prefetchReachable(route);
+}
+
+/** 裏で refresh=1 し、今の画面なら DOM を更新する。 */
+async function liveRefresh(route, token) {
+  const page = BY_ROUTE.get(route);
+  if (!page) return;
+  try {
+    const fresh = await page.load(ctx, { refresh: true });
+    if (token !== renderToken || currentRoute() !== route) {
+      remember(route, fresh);
+      return;
+    }
+    const prev = recall(route);
+    remember(route, fresh);
+    if (contentChanged(prev, fresh) || prev?.source !== 'live') paint(route, fresh);
+    else setSource(...noteFor(fresh));
+  } catch (e) {
+    if (e instanceof Unauthenticated) return showSignIn(e.message);
+    // 裏更新の失敗は今の表示を残す
+  }
+}
+
+/** レールから行ける他画面を先に温める（メモリ + Worker キャッシュ）。 */
+function prefetchReachable(fromRoute) {
+  const gen = ++prefetchGen;
+  const routes = reachableRoutes(ALL_ROUTES, fromRoute);
+
+  const run = async () => {
+    for (const route of routes) {
+      if (gen !== prefetchGen) return;
+      const page = BY_ROUTE.get(route);
+      if (!page) continue;
+      // 直近メモリがあり新しそうなら飛ばす（fetchedAt が 45 秒以内）
+      const mem = recall(route);
+      if (mem?.fetchedAt) {
+        const age = Date.now() - Date.parse(mem.fetchedAt);
+        if (Number.isFinite(age) && age < 45_000) continue;
+      }
+      try {
+        const data = await page.load(ctx);
+        if (gen !== prefetchGen) return;
+        remember(route, data);
+      } catch {
+        // 先読み失敗は無視（遷移時に改めて取る）
+      }
+    }
+  };
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => { run(); }, { timeout: 2000 });
+  } else {
+    setTimeout(run, 0);
+  }
 }
 
 // ── ログイン ────────────────────────────────────────
@@ -150,6 +238,7 @@ function showSignIn(message) {
   el.app.hidden = true;
   el.signin.hidden = false;
   el.source.hidden = true;
+  forgetAll();
   if (message) {
     el.signinError.textContent = message;
     el.signinError.hidden = false;
@@ -176,6 +265,7 @@ el.signinForm.addEventListener('submit', async (e) => {
   try {
     const { user } = await api.login(email, password);
     document.getElementById('password').value = '';
+    forgetAll();
     showApp(user);
     navigate(currentRoute(), { replace: true });
   } catch (err) {
@@ -190,6 +280,7 @@ el.signinForm.addEventListener('submit', async (e) => {
 el.logout.addEventListener('click', async () => {
   stopNotifyWatcher();
   clearState();
+  forgetAll();
   const prefs = loadPrefs();
   if (prefs.subscriptionId) {
     try {

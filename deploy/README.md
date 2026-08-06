@@ -57,6 +57,11 @@ Worker 側にログイン状態を持たないので、認証用の KV / D1 は�
 ブラウザ向け応答は従来どおり `Cache-Control: no-store`。
 注文作成とログアウトで該当区画を消す。実装は `src/page-cache.js`。
 
+裏で取り直している応答には `revalidating: true` が付く。クライアントは
+`?refresh=1` で元アプリ再取得を待ち、取れたら画面を差し替える。
+また、画面を開いたとき Worker はレールから行ける他画面を裏で温める。
+クライアント側もタブ内メモリと先読みで遷移を速くする（`fork/page-store.js`）。
+
 ### ログアウトの限界（元アプリの性質）
 
 元アプリのセッションは Rails の `cookie_store` で、中身が Cookie 自体に入っている。
@@ -101,7 +106,9 @@ Worker 側にログイン状態を持たないので、認証用の KV / D1 は�
 
 画面系の応答は共通で `source` `origin` `fetchedAt` を持つ。
 `source` は `live`（元アプリから取得） / `cache`（利用者区画のキャッシュ） /
-`stale`（古いまま返した／元アプリ失敗時の救済）。例（`/api/orders`）:
+`stale`（古いまま返した／元アプリ失敗時の救済）。
+裏更新中は `revalidating: true`。クライアントのライブ更新は `?refresh=1`。
+例（`/api/orders`）:
 
 ```json
 {
