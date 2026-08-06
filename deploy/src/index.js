@@ -36,7 +36,7 @@ import {
 } from './parse-pages.js';
 import { buildParseAlertPayload, inspectParse } from './parse-guard.js';
 import {
-  SESSION_MAX_AGE_MS, clearCookieHeader, currentSession, seal, setCookieHeader
+  clearCookieHeader, currentSession, seal, setCookieHeader
 } from './session.js';
 import {
   buildSubscription, deleteSubscription, getSubscription, putSubscription
@@ -164,7 +164,7 @@ async function handleSessionCreate(request, env) {
   }
 
   const token = await seal(
-    { cookie, name: user.name, badge: user.badge, exp: Date.now() + SESSION_MAX_AGE_MS },
+    { cookie, name: user.name, badge: user.badge },
     env.SESSION_SECRET
   );
   return json({ user }, 200, { 'Set-Cookie': setCookieHeader(token) });
@@ -233,8 +233,7 @@ async function handleOrderCreate(request, env) {
       {
         cookie: result.cookie,
         name: session.name,
-        badge: session.badge,
-        exp: Date.now() + SESSION_MAX_AGE_MS
+        badge: session.badge
       },
       env.SESSION_SECRET
     );

@@ -308,7 +308,8 @@ test('ログアウトで Cookie が落ち、元アプリ側のサインアウト
   // 元アプリは Rails の cookie_store なので、発行済みの Cookie 値は
   // サインアウトしても無効にならない。実測で確認済みの元アプリの性質であり、
   // ここで直せるものではない。ブラウザは Set-Cookie に従うのでログアウトできる。
-  // 手元に値を持ち続けた場合は封印トークンの期限まで有効。
+  // 手元に値を持ち続けた場合は、元アプリの cookie_store の性質上まだ通る。
+  // Worker 側の封印トークンに独自期限は付けていない。
   const stillWorks = await get('/api/reports');
   assert.equal(stillWorks.status, 200,
     '元アプリの挙動が変わった可能性がある。README の但し書きを見直すこと');

@@ -107,8 +107,8 @@ export async function signIn(email, password) {
  *
  * ここでできるのは、サインアウトを element として成立させ、
  * こちらが持っている Cookie を匿名のものに差し替えることまで。
- * 併せて自ドメインの Cookie を消し（呼び出し側）、封印トークンの有効期限を
- * 短くしてある（`session.js`）。結果は握り潰さず応答に載せる。
+ * 併せて自ドメインの Cookie を消す（呼び出し側）。
+ * 結果は握り潰さず応答に載せる。
  */
 export async function signOut(cookie) {
   try {
