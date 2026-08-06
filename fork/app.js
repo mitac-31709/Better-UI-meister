@@ -61,9 +61,15 @@ function setSource(kind, note) {
 
 function noteFor(data) {
   if (ctx.demo) return ['demo', 'デモデータ（?demo=1）'];
+  const at = fmtTime(data?.fetchedAt);
   if (data?.source === 'live') {
-    const at = fmtTime(data.fetchedAt);
     return ['live', `元アプリのデータ${at ? ` · ${at} 取得` : ''}`];
+  }
+  if (data?.source === 'cache') {
+    return ['cache', `キャッシュ${at ? ` · ${at} 取得` : ''}（裏で更新中）`];
+  }
+  if (data?.source === 'stale') {
+    return ['stale', `前回のデータ${at ? ` · ${at} 取得` : ''}（更新待ち）`];
   }
   return ['demo', 'デモデータ'];
 }

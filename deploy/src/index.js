@@ -12,6 +12,7 @@
  *
  * 資格情報は保存しない。元アプリのセッション Cookie を AES-GCM で封印して
  * 自ドメインの Cookie に入れる（`src/session.js`）。
+ * 画面 JSON は利用者区画の stale-while-revalidate（`src/page-cache.js`）。
  * バックグラウンド配信用に、同じ封印で「Rails Cookie + Webhook URL」を
  * KV（NOTIFY_SUBS）へ置く。Discord オフまたはログアウトで消す。
  *
@@ -24,6 +25,10 @@ import {
 } from './background.js';
 import { forwardDiscord, sanitizeDiscordBody, validateWebhookUrl } from './discord.js';
 import { ApiError, createOrder, html, signIn, signOut, unreadCount } from './meister.js';
+import {
+  FRESH_MS, PAGE_CACHE_PATHS, STALE_WHILE_REVALIDATE_MS,
+  pageCache, userCacheKey
+} from './page-cache.js';
 import { parseReportsPage } from './parse.js';
 import {
   parseDashboard, parseEquipments, parseLoans, parseNotifications,
@@ -101,7 +106,7 @@ async function alertParseAnomaly(env, { path, origin, reasons, html: body, error
 }
 
 /** 元アプリの 1 画面を取って JSON にする。想定外なら Discord へ知らせる。 */
-async function page(cookie, path, parse, env) {
+async function pageLive(cookie, path, parse, env) {
   const body = await html(cookie, path);
   const origin = `https://meister.tokyo-ct.org${path}`;
   let parsed;
@@ -126,6 +131,17 @@ async function page(cookie, path, parse, env) {
     parseWarning: check.ok ? null : check.reasons,
     ...parsed
   };
+}
+
+/** 利用者区画のキャッシュ付き。遅延はミス時だけ。 */
+async function page(cookie, path, parse, env, ctx) {
+  const userKey = await userCacheKey(cookie);
+  return pageCache.load({
+    userKey,
+    path,
+    ctx,
+    fetchFresh: () => pageLive(cookie, path, parse, env)
+  });
 }
 
 async function handleSessionCreate(request, env) {
@@ -156,6 +172,10 @@ async function handleSessionCreate(request, env) {
 
 async function handleSessionDelete(request, env) {
   const session = await currentSession(request, env);
+  if (session?.cookie) {
+    const userKey = await userCacheKey(session.cookie);
+    await pageCache.invalidate(userKey, PAGE_CACHE_PATHS);
+  }
   const result = session?.cookie ? await signOut(session.cookie) : { ok: true };
   return json({ ok: true, originSignedOut: result.ok, reason: result.reason ?? null },
     200, { 'Set-Cookie': clearCookieHeader() });
@@ -220,6 +240,10 @@ async function handleOrderCreate(request, env) {
     );
     headers['Set-Cookie'] = setCookieHeader(token);
   }
+
+  // 注文一覧・ダッシュボードはすぐ古くなるので利用者区画だけ落とす。
+  const userKey = await userCacheKey(result.cookie || session.cookie);
+  await pageCache.invalidate(userKey, ['/orders', '/dashboard']);
 
   return json({
     ok: true,
@@ -363,7 +387,7 @@ async function handleCronTick(request, env) {
   });
 }
 
-async function handleApi(request, url, env) {
+async function handleApi(request, url, env, ctx) {
   const path = url.pathname;
 
   if (path === '/api/session') {
@@ -379,6 +403,12 @@ async function handleApi(request, url, env) {
       origin: 'https://meister.tokyo-ct.org',
       sessionSecret: Boolean(env.SESSION_SECRET),
       auth: 'per-user',
+      cache: {
+        strategy: 'stale-while-revalidate',
+        scope: 'per-session',
+        freshMs: FRESH_MS,
+        staleWhileRevalidateMs: STALE_WHILE_REVALIDATE_MS
+      },
       notify: {
         discordProxy: true,
         background: Boolean(env.NOTIFY_SUBS),
@@ -431,22 +461,36 @@ async function handleApi(request, url, env) {
   }
 
   if (path === '/api/notifications/unread_count') {
-    return json(await unreadCount(session.cookie));
+    const userKey = await userCacheKey(session.cookie);
+    const data = await pageCache.load({
+      userKey,
+      path: '/notifications/unread_count',
+      ctx,
+      fetchFresh: async () => {
+        const unread = await unreadCount(session.cookie);
+        return {
+          source: 'live',
+          fetchedAt: new Date().toISOString(),
+          ...unread
+        };
+      }
+    });
+    return json(data);
   }
 
   const target = PAGES[path];
   if (!target) return json({ error: 'そのような口はありません' }, 404);
-  return json(await page(session.cookie, target[0], target[1], env));
+  return json(await page(session.cookie, target[0], target[1], env, ctx));
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     try {
-      return await handleApi(request, url, env);
+      return await handleApi(request, url, env, ctx);
     } catch (e) {
       const status = e instanceof ApiError ? e.status : 500;
       const payload = { error: e.message || String(e) };

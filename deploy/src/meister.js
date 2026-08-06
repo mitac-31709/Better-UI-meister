@@ -4,7 +4,7 @@
  * `/notifications/unread_count` だけ。他の画面は HTML を取って parse 側で JSON にする。
  *
  * セッションは**利用者ごと**。Worker 側に共有のログイン状態を持たない。
- * 誰かのセッションを他の利用者に見せないため、ここではキャッシュを一切しない。
+ * 画面 JSON のキャッシュは `page-cache.js` がセッション区画で行う（ここではしない）。
  */
 
 import { authenticityToken, looksLikeSignIn } from './parse.js';

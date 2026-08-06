@@ -67,6 +67,8 @@ test('/api/health は資格情報を持たず利用者ごとの認証だと報�
   assert.equal(body.ok, true);
   assert.equal(body.auth, 'per-user');
   assert.equal(body.sessionSecret, true, 'SESSION_SECRET が未設定');
+  assert.equal(body.cache?.strategy, 'stale-while-revalidate');
+  assert.equal(body.cache?.scope, 'per-session');
   assert.equal(body.notify?.discordProxy, true, 'Discord 中継の印が無い');
   assert.equal(typeof body.notify?.parseAlertWebhook, 'boolean',
     'パース異常通知 Webhook の有無が無い');
@@ -118,9 +120,15 @@ test('改竄した Cookie は 401 になり、こちらの Cookie も落とす',
   assert.match(res.headers.get('set-cookie') || '', /mms_session=;/);
 });
 
+const assertLiveOrCached = (body, path) => {
+  assert.ok(['live', 'cache', 'stale'].includes(body.source),
+    `${path} の source が想定外: ${body.source}`);
+  assert.ok(body.fetchedAt, `${path} に fetchedAt が無い`);
+};
+
 test('/api/dashboard', async () => {
   const body = await (await get('/api/dashboard')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/dashboard');
   assert.equal(body.heading, 'ダッシュボード');
   assert.match(body.team, /^チーム:/);
   assert.ok(body.notice, '調整中の表示が取れていない');
@@ -128,7 +136,7 @@ test('/api/dashboard', async () => {
 
 test('/api/reports は列見出しと集計と空状態を元 HTML から取る', async () => {
   const body = await (await get('/api/reports')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/reports');
   assert.deepEqual(body.columns.map((c) => c.label),
     ['タイトル', '期間', 'ステータス', '期限', '作成日']);
   for (const k of ['未完了', '完了', '合計']) {
@@ -143,7 +151,7 @@ test('/api/reports は列見出しと集計と空状態を元 HTML から取る'
 
 test('/api/orders は列見出し 6 つと空状態を取る', async () => {
   const body = await (await get('/api/orders')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/orders');
   assert.deepEqual(body.columns.map((c) => c.label),
     ['商品', '単価', '数量', '合計', 'ステータス', '作成日']);
   assert.equal(body.empty.title, '注文がありません');
@@ -159,7 +167,7 @@ test('/api/orders は列見出し 6 つと空状態を取る', async () => {
 
 test('/api/equipments', async () => {
   const body = await (await get('/api/equipments')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/equipments');
   assert.equal(body.heading, '利用可能な機材');
   assert.equal(body.lede, '貸出申請可能な機材一覧');
   assert.match(body.empty.text, /現在利用可能な機材はありません/);
@@ -168,7 +176,7 @@ test('/api/equipments', async () => {
 
 test('/api/loans は描画されている節だけを返す', async () => {
   const body = await (await get('/api/loans')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/loans');
   assert.equal(body.heading, '機材貸出');
   assert.deepEqual(body.sections.map((s) => s.key), ['pending', 'active']);
   assert.deepEqual(body.sections.map((s) => s.title), ['申請中', '貸出中']);
@@ -177,7 +185,7 @@ test('/api/loans は描画されている節だけを返す', async () => {
 
 test('/api/notifications', async () => {
   const body = await (await get('/api/notifications')).json();
-  assert.equal(body.source, 'live');
+  assertLiveOrCached(body, '/api/notifications');
   assert.equal(body.heading, '通知');
   assert.equal(body.empty.title, '通知はありません');
   assert.ok(Array.isArray(body.notifications));
@@ -185,6 +193,16 @@ test('/api/notifications', async () => {
     assert.ok(n.read === null || typeof n.read === 'boolean',
       `read が boolean でも null でもない: ${n.read}`);
   }
+});
+
+test('2 回目の画面取得はキャッシュから即返す（source=cache）', async () => {
+  const first = await (await get('/api/dashboard')).json();
+  assertLiveOrCached(first, '/api/dashboard#1');
+  const second = await (await get('/api/dashboard')).json();
+  assert.equal(second.source, 'cache',
+    `2 回目がキャッシュになっていない: ${second.source}`);
+  assert.equal(second.fetchedAt, first.fetchedAt);
+  assert.equal(second.heading, first.heading);
 });
 
 test('/api/notifications/unread_count は元アプリの JSON をそのまま通す', async () => {
