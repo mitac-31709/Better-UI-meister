@@ -10,7 +10,9 @@
  */
 
 import { Unauthenticated, api } from './api.js';
-import { DEMO_USER, demoNotifications } from './demo.js';
+import {
+  DEMO_FRESH_MS, DEMO_USER, demoNotifications, demoUnreadCount, resetDemoCache
+} from './demo.js';
 import { fmtTime } from './format.js';
 import {
   badgeLabel, clearState, createWatcher, loadPrefs, savePrefs, showBrowserNotification
@@ -70,19 +72,23 @@ function setSource(kind, note) {
 }
 
 function noteFor(data) {
-  if (ctx.demo) return ['demo', 'デモデータ（?demo=1）'];
+  const prefix = ctx.demo ? 'デモ · ' : '';
   const at = fmtTime(data?.fetchedAt);
   if (data?.source === 'live') {
-    return ['live', `元アプリのデータ${at ? ` · ${at} 取得` : ''}`];
+    const label = ctx.demo ? '最新データ' : '元アプリのデータ';
+    return ['live', `${prefix}${label}${at ? ` · ${at} 取得` : ''}`];
   }
   if (data?.revalidating) {
-    return ['cache', `キャッシュ${at ? ` · ${at} 取得` : ''}（裏で更新中）`];
+    return ['cache', `${prefix}キャッシュ${at ? ` · ${at} 取得` : ''}（裏で更新中）`];
   }
   if (data?.source === 'cache') {
-    return ['cache', `キャッシュ${at ? ` · ${at} 取得` : ''}`];
+    return ['cache', `${prefix}キャッシュ${at ? ` · ${at} 取得` : ''}`];
   }
   if (data?.source === 'stale') {
-    return ['stale', `前回のデータ${at ? ` · ${at} 取得` : ''}（更新待ち）`];
+    return ['stale', `${prefix}前回のデータ${at ? ` · ${at} 取得` : ''}（更新待ち）`];
+  }
+  if (ctx.demo || data?.source === 'demo') {
+    return ['demo', 'デモデータ（?demo=1）'];
   }
   return ['demo', 'デモデータ'];
 }
@@ -172,12 +178,12 @@ async function render(route) {
   if (contentChanged(mem, data) || !mem) paint(route, data);
   else setSource(...noteFor(data));
 
-  // キャッシュ表示なら元を取り直して、取れたら画面を差し替える
-  if (!ctx.demo && (data.revalidating || data.source === 'stale')) {
+  // キャッシュ表示なら元を取り直して、取れたら画面を差し替える（デモも同じ）
+  if (data.revalidating || data.source === 'stale') {
     liveRefresh(route, token);
   }
 
-  if (!ctx.demo) prefetchReachable(route);
+  prefetchReachable(route);
 }
 
 /** 裏で refresh=1 し、今の画面なら DOM を更新する。 */
@@ -210,11 +216,12 @@ function prefetchReachable(fromRoute) {
       if (gen !== prefetchGen) return;
       const page = BY_ROUTE.get(route);
       if (!page) continue;
-      // 直近メモリがあり新しそうなら飛ばす（fetchedAt が 45 秒以内）
+      // 直近メモリがあり新しそうなら飛ばす
       const mem = recall(route);
       if (mem?.fetchedAt) {
+        const freshMs = ctx.demo ? DEMO_FRESH_MS : 45_000;
         const age = Date.now() - Date.parse(mem.fetchedAt);
-        if (Number.isFinite(age) && age < 45_000) continue;
+        if (Number.isFinite(age) && age < freshMs) continue;
       }
       try {
         const data = await page.load(ctx);
@@ -234,11 +241,16 @@ function prefetchReachable(fromRoute) {
 }
 
 // ── ログイン ────────────────────────────────────────
+function clearClientCaches() {
+  forgetAll();
+  resetDemoCache();
+}
+
 function showSignIn(message) {
   el.app.hidden = true;
   el.signin.hidden = false;
   el.source.hidden = true;
-  forgetAll();
+  clearClientCaches();
   if (message) {
     el.signinError.textContent = message;
     el.signinError.hidden = false;
@@ -265,7 +277,7 @@ el.signinForm.addEventListener('submit', async (e) => {
   try {
     const { user } = await api.login(email, password);
     document.getElementById('password').value = '';
-    forgetAll();
+    clearClientCaches();
     showApp(user);
     navigate(currentRoute(), { replace: true });
   } catch (err) {
@@ -280,7 +292,7 @@ el.signinForm.addEventListener('submit', async (e) => {
 el.logout.addEventListener('click', async () => {
   stopNotifyWatcher();
   clearState();
-  forgetAll();
+  clearClientCaches();
   const prefs = loadPrefs();
   if (prefs.subscriptionId) {
     try {
@@ -324,10 +336,7 @@ const watcher = createWatcher({
   isVisible: () => document.visibilityState !== 'hidden',
   onBadge: setBadge,
   unreadCount: async () => {
-    if (ctx.demo) {
-      const unread = demoNotifications().notifications.filter((n) => n.read === false).length;
-      return { count: unread };
-    }
+    if (ctx.demo) return demoUnreadCount();
     const result = await api.unreadCount();
     // ポーリングのついでに購読の Cookie を更新（タブを閉じたあともしばらく使えるように）
     refreshBackgroundSubscription();
