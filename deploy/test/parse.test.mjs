@@ -57,6 +57,32 @@ test('authenticity_token を取り出せる', () => {
   assert.ok(token.length > 40, `token が短い: ${token}`);
 });
 
+test('注文フォームの authenticity_token はログアウト用と別（per-form CSRF）', () => {
+  const ordersNew = readFileSync(
+    join(here, '../../clone/site/auth/orders/new.html'), 'utf8'
+  );
+  const first = authenticityToken(ordersNew);
+  const forOrders = authenticityToken(ordersNew, { formAction: '/orders' });
+  const forLogout = authenticityToken(ordersNew, { formAction: '/users/sign_out' });
+
+  assert.equal(typeof forOrders, 'string');
+  assert.ok(forOrders.length > 40);
+  assert.equal(typeof forLogout, 'string');
+  assert.ok(forLogout.length > 40);
+  assert.notEqual(forOrders, forLogout,
+    '注文フォームとログアウトで同じトークンだと per-form CSRF を見誤る');
+  // 先頭一致はログアウト側（ナビが先にある）
+  assert.equal(first, forLogout);
+});
+
+test('value が name より前でも authenticity_token を取れる', () => {
+  const html = '<form action="/orders" method="post">'
+    + '<input type="hidden" value="TOKEN_VALUE_HERE_PADDED_XXX" name="authenticity_token" />'
+    + '</form>';
+  assert.equal(authenticityToken(html, { formAction: '/orders' }),
+    'TOKEN_VALUE_HERE_PADDED_XXX');
+});
+
 test('日付を ISO に寄せられる', () => {
   assert.equal(toIso('2026/08/05'), '2026-08-05');
   assert.equal(toIso('2026-8-5'), '2026-08-05');

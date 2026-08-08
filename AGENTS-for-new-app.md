@@ -149,8 +149,10 @@ read: /data-read="(true|false)"/.exec(html)?.[1] === 'true' ? true
 Worker のモジュールスコープ変数は**アイソレート内で複数リクエストに共有される**。
 利用者ごとの内容をそこに置くと他人に見える。
 
-`/api/*` の取得結果は**キャッシュしていない**。速度のためにキャッシュを足したく
-なったら、鍵に利用者を含めるか、やめること。
+`/api/*` の取得結果は**利用者区画の stale-while-revalidate**（`deploy/src/page-cache.js`）。
+鍵にセッション Cookie の SHA-256 を入れ、他人のデータが混ざらないようにする。
+裏更新は `waitUntil` で行うが、先読み温めで枠を食い潰すと再検証の書き込みまで
+キャンセルされる（本番ログで確認済み）。温める処理は fresh ヒット時に限定する。
 
 ---
 
@@ -272,13 +274,19 @@ Cookie とセットでないと通らない。古い Cookie + 新しいトーク
 
 ```js
 const page = await origin('/dashboard', ..., cookie);
-const token = authenticityToken(await page.text());
+const token = authenticityToken(await page.text(), { formAction: '/users/sign_out' });
 const fresh = sessionCookieFrom(page) || cookie;   // ← これが要る
 await origin('/users/sign_out', { method: 'POST', body: ... }, fresh);
 ```
 
-**POST を足すときは必ずこの組で送る。** 本文の自動保存（`/reports/:id/auto_save`）を
-実装するなら同じ罠がある。
+**フォームごとに authenticity_token が違う（per-form CSRF）。** `/orders/new` では
+ナビのログアウト用と注文フォームで**別の値**になる。ページ先頭のトークンを使うと
+ログアウト用になり、`POST /orders` が 422 になる（本番ログで確認）。
+`authenticityToken(html, { formAction: '/orders' })` のように、投げる先の
+`<form action>` に紐づくトークンを取ること。
+
+**POST を足すときは必ず「そのフォームのトークン + 応答の Cookie」の組で送る。**
+本文の自動保存（`/reports/:id/auto_save`）を実装するなら同じ罠がある。
 
 **422 には 2 通りの理由がある。** メールアドレス／パスワードの不一致と、CSRF の
 不成立。まとめて扱うと原因が読めない。本文で切り分ける。

@@ -32,7 +32,7 @@ const SALES_SITES = [
 const numeric = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 export async function load(ctx, opts = {}) {
-  return ctx.demo ? demoOrders() : api.orders(opts);
+  return ctx.demo ? demoOrders(opts) : api.orders(opts);
 }
 
 export function render(data, ctx) {

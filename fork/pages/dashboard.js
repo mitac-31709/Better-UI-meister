@@ -24,7 +24,7 @@ const SHORTCUTS = [
 ];
 
 export async function load(ctx, opts = {}) {
-  return ctx.demo ? demoDashboard() : api.dashboard(opts);
+  return ctx.demo ? demoDashboard(opts) : api.dashboard(opts);
 }
 
 export function render(data, ctx) {
