@@ -380,8 +380,9 @@ button { font: inherit; color: inherit; }
 /* データの出どころ。実データかデモかを取り違えないよう全画面で出す。 */
 .datasource {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2xs);
+  gap: var(--space-2xs) var(--space-xs);
   margin-bottom: var(--space-md);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -400,6 +401,54 @@ button { font: inherit; color: inherit; }
 .datasource[data-kind="cache"]::before { background: var(--color-accent); }
 .datasource[data-kind="stale"]::before { background: var(--color-warn); }
 .datasource[data-kind="demo"]::before { background: var(--color-warn); }
+
+.datasource__note { min-width: 0; }
+
+/* 取得時刻の横。行の 2xs に合わせ、タッチ領域だけ 44px に広げる。 */
+.datasource__refresh {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  border: var(--rule-fine) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  letter-spacing: var(--tracking-label);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out),
+              color var(--dur-micro) var(--ease-out);
+}
+.datasource__refresh::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--touch-min) - 1.25rem) / -2) calc(-1 * var(--space-2xs));
+}
+@media (hover: hover) {
+  .datasource__refresh:hover:not(:disabled) { background: var(--color-paper-2); }
+}
+.datasource__refresh:active:not(:disabled) { background: var(--color-rule); }
+.datasource__refresh:disabled { color: var(--color-muted); }
+.datasource__refresh[data-state="loading"] { pointer-events: none; }
+.datasource__refresh[data-state="loading"]::after {
+  content: "";
+  display: block;
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: var(--space-2xs);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 700ms linear infinite;
+}
+.datasource__refresh[data-state="error"] { color: var(--color-warn); }
+.datasource__refresh[data-state="success"]::after { content: "✓"; margin-left: var(--space-2xs); }
 
 .loading {
   padding: var(--space-xl) 0;

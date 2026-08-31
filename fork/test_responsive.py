@@ -32,7 +32,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 WIDTHS = [320, 375, 414, 768, 1024, 1280, 1920]
-CLICKABLE = ".btn, .rail__link, .sort-btn, .segmented__option span, .toast__action, .icon-btn"
+CLICKABLE = ".btn, .rail__link, .sort-btn, .segmented__option span, .toast__action, .icon-btn, .datasource__refresh"
 
 failures: list[str] = []
 
@@ -166,12 +166,35 @@ def check_data_source(page, base: str) -> None:
     open_reports(page, base)
 
     check(page.is_visible("#data-source"), "データの出どころが表示されていない")
-    note = page.inner_text("#data-source")
+    check(page.is_visible("#data-source-refresh"), "取得時刻の横に更新ボタンが無い")
+    check(page.inner_text("#data-source-refresh").strip() == "更新",
+          "更新ボタンのラベルが『更新』ではない")
+    note = page.inner_text("#data-source-note")
     kind = page.get_attribute("#data-source", "data-kind")
     check(kind in ("live", "cache", "stale", "demo"), f"data-kind が想定外: {kind}")
     if kind == "demo":
         check("デモデータ" in note, f"デモなのに表示が {note!r}")
     print(f"  出どころ: {kind} — {note}")
+
+    page.wait_for_function(
+        """() => {
+          const btn = document.querySelector('#data-source-refresh');
+          const note = document.querySelector('#data-source-note');
+          return btn && !btn.disabled && note && !note.textContent.includes('裏で更新中');
+        }""",
+        timeout=8000)
+    page.click("#data-source-refresh")
+    page.wait_for_function(
+        "() => document.querySelector('#data-source-refresh')?.getAttribute('aria-busy') === 'true'",
+        timeout=2000)
+    page.wait_for_function(
+        """() => {
+          const btn = document.querySelector('#data-source-refresh');
+          const kind = document.querySelector('#data-source')?.dataset.kind;
+          return btn && btn.getAttribute('aria-busy') === 'false' && kind === 'live';
+        }""",
+        timeout=8000)
+    print("  更新: 押すと再取得し、出どころが live になる")
 
 
 def check_behaviour(page, base: str) -> None:

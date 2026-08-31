@@ -106,7 +106,13 @@
 
   <main class="main" id="main">
     <!-- データの出どころ。実データとデモを取り違えないよう全画面で出す。 -->
-    <p class="datasource" id="data-source" hidden></p>
+    <div class="datasource" id="data-source" hidden>
+      <span class="datasource__note" id="data-source-note"></span>
+      <button class="datasource__refresh" type="button" id="data-source-refresh"
+              aria-busy="false">
+        更新
+      </button>
+    </div>
     <div id="view" class="view"></div>
   </main>
 </div>
