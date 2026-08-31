@@ -121,7 +121,7 @@ cd ../deploy && node --test test/*.mjs           # パーサと API
 | `notify.js` | 未読監視・ブラウザ通知・Discord ペイロード |
 | `notify-settings.js` | 通知画面の届け先設定（初回のみ開く） |
 | `pages/*.js` | 画面 6 つ。`meta` / `load` / `render` の 3 つを持つ |
-| `favicon.svg` | ワードマーク |
+| `favicon.svg` / `favicon.ico` | ワードマーク（コバルトのタイルに週報の3行） |
 | `test_responsive.py` | 実ブラウザでの検証 |
 
 ## 元 UI から直したこと
