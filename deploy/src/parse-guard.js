@@ -38,8 +38,18 @@ export const PAGE_EXPECTATIONS = {
     kind: 'list',
     heading: '通知',
     itemsKey: 'notifications'
+  },
+  '/reports/:id': {
+    kind: 'report-detail'
   }
 };
+
+/** `/reports/114` を `/reports/:id` の想定に寄せる。 */
+export function expectationPath(path) {
+  if (PAGE_EXPECTATIONS[path]) return path;
+  if (/^\/reports\/\d+$/.test(path)) return '/reports/:id';
+  return path;
+}
 
 /**
  * HTML とパース結果を見て、想定外なら { ok: false, reasons } を返す。
@@ -47,7 +57,7 @@ export const PAGE_EXPECTATIONS = {
  */
 export function inspectParse(path, html, parsed) {
   const reasons = [];
-  const expect = PAGE_EXPECTATIONS[path];
+  const expect = PAGE_EXPECTATIONS[expectationPath(path)];
 
   if (typeof html !== 'string' || !html.trim()) {
     reasons.push('HTML が空');
@@ -88,6 +98,9 @@ export function inspectParse(path, html, parsed) {
       break;
     case 'loans':
       inspectLoans(expect, parsed, reasons);
+      break;
+    case 'report-detail':
+      inspectReportDetail(html, parsed, reasons);
       break;
     default:
       reasons.push(`未知の kind: ${expect.kind}`);
@@ -141,6 +154,21 @@ function inspectList(expect, parsed, reasons) {
   }
   if (!Array.isArray(parsed[expect.itemsKey])) {
     reasons.push(`${expect.itemsKey} が配列ではない`);
+  }
+}
+
+function inspectReportDetail(html, parsed, reasons) {
+  if (!Array.isArray(parsed.fields)) {
+    reasons.push('fields が配列ではない');
+    return;
+  }
+  const named = [...String(html || '').matchAll(/\bdata-field-name="([^"]+)"/g)]
+    .map((m) => m[1]);
+  const got = new Set(parsed.fields.map((f) => f?.name).filter(Boolean));
+  for (const name of named) {
+    if (!got.has(name)) {
+      reasons.push(`data-field-name="${name}" の項目がパース結果に無い`);
+    }
   }
 }
 

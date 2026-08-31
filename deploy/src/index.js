@@ -4,6 +4,7 @@
  * - `DELETE /api/session`  ログアウトする
  * - `GET  /api/me`         ログイン中の利用者
  * - `GET  /api/<page>`     元アプリの画面を JSON にして返す
+ * - `GET  /api/reports/:id` 週報の詳細（`/reports/:id` の HTML）
  * - `POST /api/orders`     新しい注文を元アプリへ作る
  * - `POST /api/notify/discord`  即時の Discord 中継
  * - `POST /api/notify/subscribe`  タブ閉鎖後も Discord へ送る購読を KV に登録
@@ -29,7 +30,7 @@ import {
   FRESH_MS, PAGE_CACHE_PATHS, STALE_WHILE_REVALIDATE_MS,
   freshness, pageCache, userCacheKey
 } from './page-cache.js';
-import { parseReportsPage } from './parse.js';
+import { parseReportsPage, parseReportDetail } from './parse.js';
 import {
   parseDashboard, parseEquipments, parseLoans, parseNotifications,
   parseOrders, parseUser
@@ -488,6 +489,15 @@ async function handleApi(request, url, env, ctx) {
 
   if (path === '/api/me') {
     return json({ user: { name: session.name ?? null, badge: session.badge ?? null } });
+  }
+
+  const reportMatch = path.match(/^\/api\/reports\/(\d+)$/);
+  if (reportMatch) {
+    const originPath = `/reports/${reportMatch[1]}`;
+    const refresh = url.searchParams.get('refresh') === '1';
+    return json(await page(
+      session.cookie, originPath, parseReportDetail, env, ctx, { refresh }
+    ));
   }
 
   if (path === '/api/notifications/unread_count') {

@@ -261,6 +261,43 @@ def check_dashboard(page) -> None:
     print("  ダッシュボード: 注記を出どころで書き分ける")
 
 
+# ── 週報 ───────────────────────────────────────────
+def check_reports(page) -> None:
+    columns = [{"label": s} for s in
+               ["タイトル", "期間", "ステータス", "期限", "作成日"]]
+    empty = {
+        "title": "週報がありません",
+        "body": "管理者によって新しいレポートの締め切りが設定されると、ここにレポートが表示されます。"
+    }
+
+    render(page, "reports", wrap({
+        "columns": columns, "empty": empty, "counts": {"未完了": 1, "完了": 0, "合計": 1},
+        "reports": [{
+            "id": 114, "title": "第14週 週報", "period": "07/27 – 08/02",
+            "status": "未完了", "due": "2026/08/05", "createdAt": "2026/07/28",
+            "dueISO": "2026-08-05", "createdAtISO": "2026-07-28",
+            "periodStartISO": "2026-07-27", "periodEndISO": "2026-08-02",
+            "body": "",
+            "fields": [
+                {"name": "content", "label": "今週の活動", "value": "測定をやり直し中。",
+                 "lockedBy": None}
+            ],
+            "meta": [{"label": "期間", "value": "07/27 – 08/02"}],
+            "timeline": [],
+            "detailLoaded": True
+        }]
+    }), demo=False)
+    page.locator(".row__open").first.click()
+    page.wait_for_timeout(200)
+    body = page.inner_text("#panel")
+    check("今週の活動" in body, f"元アプリの項目名が出ていない: {body!r}")
+    check(page.input_value("#panel-text") == "測定をやり直し中。",
+          f"詳細の本文が出ていない: {page.input_value('#panel-text')!r}")
+    check(page.locator("#panel-save").count() == 0,
+          "実データなのに保存ボタンを出している")
+    print("  週報: 詳細の項目名を素通し / 実データは保存ボタンなし")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8081/index.html?demo=1")
@@ -292,6 +329,7 @@ def main() -> int:
         check_orders(page)
         check_loans(page)
         check_dashboard(page)
+        check_reports(page)
 
         browser.close()
 

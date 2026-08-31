@@ -124,7 +124,20 @@ function buildReports() {
     periodStartISO: iso(`${YEAR}-${from}`),
     periodEndISO: iso(`${YEAR}-${to}`),
     body,
-    lockedBy: lockedBy || null
+    lockedBy: lockedBy || null,
+    fields: [{
+      name: 'content',
+      label: '本文',
+      value: body || '',
+      lockedBy: lockedBy || null
+    }],
+    meta: [
+      { label: '期間', value: `${md(from)} – ${md(to)}` },
+      { label: 'ステータス', value: status },
+      { label: '期限', value: `${YEAR}/${md(due)}` },
+      { label: '作成日', value: `${YEAR}/${md(created)}` }
+    ],
+    timeline: []
   }));
 
   return {
@@ -147,6 +160,24 @@ function buildReports() {
 
 export function demoReports(opts = {}) {
   return cached('reports', buildReports, opts);
+}
+
+export async function demoReport(id, opts = {}) {
+  const data = await demoReports(opts);
+  const r = (data.reports || []).find((x) => x.id === Number(id));
+  if (!r) throw new Error('週報が見つかりません');
+  return {
+    source: data.source,
+    fetchedAt: data.fetchedAt,
+    origin: `/reports/${r.id}`,
+    id: r.id,
+    title: r.title,
+    meta: r.meta || [],
+    fields: r.fields || [],
+    timeline: r.timeline || [],
+    body: r.body || '',
+    lockedBy: r.lockedBy || null
+  };
 }
 
 // ── ダッシュボード ──────────────────────────────────

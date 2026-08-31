@@ -38,7 +38,8 @@ export function normalizeSubscription(raw) {
     updatedAt: raw.updatedAt || null,
     lastOkAt: raw.lastOkAt || null,
     lastError: typeof raw.lastError === 'string' ? raw.lastError : null,
-    disabled: Boolean(raw.disabled)
+    disabled: Boolean(raw.disabled),
+    authNotifiedAt: typeof raw.authNotifiedAt === 'string' ? raw.authNotifiedAt : null
   };
 }
 
@@ -110,6 +111,7 @@ export function buildSubscription({
     updatedAt: iso,
     lastOkAt: prev?.lastOkAt ?? null,
     lastError: null,
-    disabled: false
+    disabled: false,
+    authNotifiedAt: prev?.authNotifiedAt ?? null
   });
 }

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
-  buildDiscordPayload, pickNewNotifications, processSubscription
+  buildAuthExpiredPayload, buildDiscordPayload, pickNewNotifications, processSubscription
 } from '../src/background.js';
 import { buildSubscription, normalizeSubscription } from '../src/subscribe.js';
 
@@ -79,19 +79,48 @@ describe('processSubscription', () => {
     assert.ok(result.sub.seenIds.includes('9'));
   });
 
-  test('401 なら購読を無効化する', async () => {
+  test('401 なら購読を無効化し Discord に知らせる', async () => {
     const { ApiError } = await import('../src/meister.js');
+    const sent = [];
     const result = await processSubscription({
       id: 's2', cookie: 'c', webhookUrl: 'https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwx-yz_ABCDE',
       primed: true, count: 0, seenIds: [], disabled: false
     }, {}, {
       unreadCountFn: async () => { throw new ApiError(401, 'expired', { clearSession: true }); },
       htmlFn: async () => '',
-      forwardFn: async () => ({ ok: true, status: 204 })
+      forwardFn: async (_url, body) => {
+        sent.push(body);
+        return { ok: true, status: 204 };
+      }
     });
     assert.equal(result.sub.disabled, true);
     assert.equal(result.sent, 0);
     assert.match(result.error, /401/);
+    assert.equal(sent.length, 1);
+    assert.match(sent[0].content, /ログインが切れ/);
+    assert.ok(result.sub.authNotifiedAt);
+  });
+
+  test('401 でも Discord 失敗なら authNotifiedAt は空のまま無効化する', async () => {
+    const { ApiError } = await import('../src/meister.js');
+    const result = await processSubscription({
+      id: 's3', cookie: 'c', webhookUrl: 'https://discord.com/api/webhooks/1234567890123456789/abcdefghijklmnopqrstuvwx-yz_ABCDE',
+      primed: true, count: 0, seenIds: [], disabled: false
+    }, {}, {
+      unreadCountFn: async () => { throw new ApiError(401, 'expired', { clearSession: true }); },
+      htmlFn: async () => '',
+      forwardFn: async () => ({ ok: false, status: 500 })
+    });
+    assert.equal(result.sub.disabled, true);
+    assert.equal(result.sub.authNotifiedAt, null);
+  });
+});
+
+describe('buildAuthExpiredPayload', () => {
+  test('再ログインを促す', () => {
+    const p = buildAuthExpiredPayload({ origin: 'https://example.test' });
+    assert.match(p.content, /ログインが切れ/);
+    assert.equal(p.embeds[0].url, 'https://example.test/notifications');
   });
 });
 

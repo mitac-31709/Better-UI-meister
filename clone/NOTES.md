@@ -250,6 +250,7 @@ else                             detailsUrl = `/reports/${reportId}`
 
 - データ行が入った一覧の見た目（行の密度、ステータスの表示方法、ページネーションの件数）
 - 詳細スライドオーバーの中身と `data-field-name` の実際の値
+  （フォーク側は Stimulus の印で項目を読む。実 HTML での検証は未了）
 - TA / 管理者画面（`/ta/**` `/admin/**` は全て `/dashboard` にリダイレクト）
 - ソート UI の実際の見た目と `data-column` の値
 - フィルタ・検索 UI の有無

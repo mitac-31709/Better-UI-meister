@@ -15,7 +15,8 @@ import { dirname, join } from 'node:path';
 
 import {
   parseReportsPage, parseCounts, parseColumns, parseEmptyState,
-  parseRows, toIso, splitRange, looksLikeSignIn, authenticityToken, text
+  parseRows, parseReportDetail, extractSidePanel, toIso, splitRange,
+  looksLikeSignIn, authenticityToken, text
 } from '../src/parse.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -138,4 +139,76 @@ test('ステータスの前に付くグリフを落とす', () => {
       </tr>${close}`
   );
   assert.equal(parseRows(withGlyph, parseColumns(withGlyph))[0].status, '完了');
+});
+
+// ── 詳細。実 HTML が無いので Stimulus の印に合わせた合成 HTML で検証する ──
+const SYNTHETIC_DETAIL = `
+<html><body>
+<main>
+  <turbo-frame id="side_panel">
+    <div data-controller="collaborative-edit"
+         data-collaborative-edit-report-id-value="114"
+         data-collaborative-edit-current-user-id-value="1"
+         data-collaborative-edit-current-user-name-value="三谷 慧介"
+         data-collaborative-edit-initial-locks-value="[{&quot;field_name&quot;:&quot;next_week&quot;,&quot;user_id&quot;:2,&quot;user_name&quot;:&quot;岸 洋輔&quot;}]">
+      <h2>第14週 週報</h2>
+      <dl>
+        <dt>期間</dt><dd>07/27 – 08/02</dd>
+        <dt>ステータス</dt><dd>未完了</dd>
+        <dt>期限</dt><dd>2026/08/05</dd>
+      </dl>
+      <div>
+        <label for="report_content">今週の活動</label>
+        <textarea id="report_content" data-collaborative-edit-target="field"
+                  data-field-name="content">位置決め精度の測定をやり直し中。</textarea>
+      </div>
+      <div>
+        <label for="report_next_week">来週の予定</label>
+        <textarea id="report_next_week" data-collaborative-edit-target="field"
+                  data-field-name="next_week">検査データをまとめる。</textarea>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <time datetime="2026-07-28">2026/07/28</time>
+          作成されました
+        </div>
+      </div>
+    </div>
+  </turbo-frame>
+</main>
+</body></html>
+`;
+
+test('詳細の Turbo Frame を切り出せる', () => {
+  const inner = extractSidePanel(SYNTHETIC_DETAIL);
+  assert.match(inner, /collaborative-edit/);
+  assert.doesNotMatch(inner, /<main/);
+});
+
+test('詳細から項目・メタ・履歴・ロックを取れる（合成 HTML）', () => {
+  const parsed = parseReportDetail(SYNTHETIC_DETAIL);
+  assert.equal(parsed.id, 114);
+  assert.equal(parsed.title, '第14週 週報');
+  assert.deepEqual(parsed.meta.map((m) => m.label), ['期間', 'ステータス', '期限']);
+  assert.equal(parsed.fields.length, 2);
+  assert.equal(parsed.fields[0].name, 'content');
+  assert.equal(parsed.fields[0].label, '今週の活動');
+  assert.equal(parsed.fields[0].value, '位置決め精度の測定をやり直し中。');
+  assert.equal(parsed.fields[1].name, 'next_week');
+  assert.equal(parsed.fields[1].label, '来週の予定');
+  assert.equal(parsed.fields[1].lockedBy, '岸 洋輔');
+  assert.equal(parsed.lockedBy, '岸 洋輔');
+  assert.equal(parsed.timeline.length, 1);
+  assert.equal(parsed.timeline[0].atISO, '2026-07-28');
+  assert.match(parsed.timeline[0].text, /作成/);
+});
+
+test('frame が無い詳細 HTML でも項目を取れる', () => {
+  const parsed = parseReportDetail(`
+    <h2>週報</h2>
+    <label for="a">本文</label>
+    <textarea id="a" data-field-name="content">hello &amp; world</textarea>
+  `);
+  assert.equal(parsed.fields[0].value, 'hello & world');
+  assert.equal(parsed.fields[0].label, '本文');
 });

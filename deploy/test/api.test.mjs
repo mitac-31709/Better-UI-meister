@@ -77,7 +77,8 @@ test('/api/health は資格情報を持たず利用者ごとの認証だと報�
 });
 
 test('セッション無しでは全ての取得口が 401', async () => {
-  for (const path of ['/api/me', '/api/dashboard', '/api/reports', '/api/orders',
+  for (const path of ['/api/me', '/api/dashboard', '/api/reports', '/api/reports/1',
+    '/api/orders',
     '/api/equipments', '/api/loans', '/api/notifications',
     '/api/notifications/unread_count']) {
     const res = await getNoAuth(path);
