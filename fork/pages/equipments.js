@@ -14,7 +14,7 @@ export const meta = { route: '/equipments', nav: '機材', title: '利用可能�
 const ORIGIN = 'https://meister.tokyo-ct.org';
 
 export async function load(ctx, opts = {}) {
-  return ctx.demo ? demoEquipments() : api.equipments(opts);
+  return ctx.demo ? demoEquipments(opts) : api.equipments(opts);
 }
 
 export function render(data) {

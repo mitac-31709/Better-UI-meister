@@ -40,7 +40,7 @@ function parseReportQueryId(raw) {
 }
 
 export async function load(ctx, opts = {}) {
-  return ctx.demo ? demoReports() : api.reports(opts);
+  return ctx.demo ? demoReports(opts) : api.reports(opts);
 }
 
 export function render(data, ctx) {
