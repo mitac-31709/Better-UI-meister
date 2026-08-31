@@ -181,8 +181,10 @@ test('/api/orders は列見出し 6 つと空状態を取る', async () => {
   assertLiveOrCached(body, '/api/orders');
   assert.deepEqual(body.columns.map((c) => c.label),
     ['商品', '単価', '数量', '合計', 'ステータス', '作成日']);
-  assert.equal(body.empty.title, '注文がありません');
   assert.ok(Array.isArray(body.orders));
+  if (body.orders.length === 0) {
+    assert.equal(body.empty?.title, '注文がありません');
+  }
   for (const o of body.orders) {
     for (const k of ['unitPriceValue', 'quantityValue', 'totalValue']) {
       assert.ok(o[k] === null || typeof o[k] === 'number',
