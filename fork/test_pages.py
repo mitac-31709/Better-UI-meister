@@ -36,6 +36,7 @@ def check(condition: bool, message: str) -> None:
 
 SETUP = """
 () => {
+  window.__haltAppPaint = true;
   window.__render = async (mod, data, demo) => {
     const m = await import(`./pages/${mod}.js`);
     const ctx = {
@@ -258,7 +259,39 @@ def check_dashboard(page) -> None:
     check("ダミー" not in live, f"実データの注記が「ダミー」と言っている: {live!r}")
     check("ダミー" in demo, f"デモの注記が「ダミー」と言っていない: {demo!r}")
     check("調整中" in page.inner_text("#view .notice"), "調整中の表示が出ていない")
-    print("  ダッシュボード: 注記を出どころで書き分ける")
+
+    # 他画面の実データが来たら、件数と未完了の週報を出す。無い面は作らない。
+    render(page, "dashboard", wrap({
+        "heading": "ダッシュボード", "team": "チーム: 10(未定)", "notice": "調整中",
+        "reports": {
+            "counts": {"未完了": 1, "完了": 0, "合計": 1},
+            "reports": [{
+                "id": "8b293839-a910-4bd6-b468-4915b9cefd19",
+                "title": "10/01のレポート", "status": "未完了",
+                "due": "2026/10/01 17:00", "dueISO": "2026-10-01"
+            }]
+        },
+        "orders": {"orders": []},
+        "loans": {"sections": [
+            {"title": "申請中", "items": []},
+            {"title": "貸出中", "items": []}
+        ]},
+        "unread": {"count": 0}
+    }), demo=False)
+    view = page.inner_text("#view")
+    check("10/01のレポート" in view, f"未完了の週報がホームに出ていない: {view!r}")
+    check("週報 未完了" in view, "週報の件数がホームに無い")
+    check("未読の通知" in view, "未読件数がホームに無い")
+    check(page.locator("#view .board__tally-value").nth(0).inner_text() == "1",
+          "週報未完了の件数が 1 ではない")
+    # 注文が 0 件なら「未完了の注文」の節は出さない（0 件の嘘のリストを作らない）
+    check("未完了の注文" not in view, "注文 0 件なのに未完了の注文リストを出している")
+    page.set_viewport_size({"width": 320, "height": 900})
+    overflow = page.evaluate(
+        "() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+    check(overflow <= 0, f"ダッシュボードが 320px で横に {overflow}px あふれる")
+    page.set_viewport_size({"width": 1280, "height": 900})
+    print("  ダッシュボード: 注記を出どころで書き分ける / 他画面の件数と週報")
 
 
 # ── 週報 ───────────────────────────────────────────

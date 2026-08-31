@@ -132,6 +132,34 @@ def check_states(page, base: str) -> None:
     print("  focus-visible / active / disabled / hover: すべて定義あり")
 
 
+def check_dashboard(page, base: str) -> None:
+    """フォーク独自のホーム。元アプリの「調整中」だけでなく他画面の件数を出す。"""
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.goto(base, wait_until="load")
+    page.wait_for_selector("#app:not([hidden])", timeout=15000)
+    page.wait_for_selector(".board__title, .board__empty", timeout=15000)
+    view = page.inner_text("#view")
+    check("提出が近い週報" in view or "未完了の週報はありません" in view,
+          f"ホームに週報の焦点が無い: {view[:400]!r}")
+    check("週報 未完了" in view, "ホームに週報の件数がない")
+    check("調整中" in view, "元アプリの「調整中」を残していない")
+    if page.locator(".board__title").count():
+        page.locator(".board__actions .btn--primary").click()
+        page.wait_for_selector(".row", timeout=15000)
+        check("report_id=" in page.url, f"週報へ深リンクしていない → {page.url}")
+        print("  ダッシュボード: 件数と期限の近い週報、開くと report_id が付く")
+    else:
+        print("  ダッシュボード: 未完了なし（件数だけ）")
+
+    page.set_viewport_size({"width": 320, "height": 900})
+    page.goto(base, wait_until="load")
+    page.wait_for_selector("#app:not([hidden])", timeout=15000)
+    page.wait_for_selector(".board__layout", timeout=15000)
+    overflow = page.evaluate(
+        "() => document.documentElement.scrollWidth - document.documentElement.clientWidth")
+    check(overflow <= 0, f"ダッシュボードが 320px で横に {overflow}px あふれる")
+
+
 def check_data_source(page, base: str) -> None:
     """データの出どころが必ず画面に出ていること。実データとデモを取り違えないため。"""
     page.set_viewport_size({"width": 1280, "height": 900})
@@ -350,6 +378,8 @@ def main() -> int:
         check_states(page, args.base)
         print("--- データの出どころ ---")
         check_data_source(page, args.base)
+        print("--- ダッシュボード ---")
+        check_dashboard(page, args.base)
         print("--- 挙動の検証 ---")
         check_behaviour(page, args.base)
 

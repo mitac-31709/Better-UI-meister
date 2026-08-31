@@ -94,6 +94,7 @@ function noteFor(data) {
 }
 
 function paint(route, data) {
+  if (window.__haltAppPaint) return;
   const page = BY_ROUTE.get(route);
   if (!page || !data) return;
   const [kind, note] = noteFor(data);
@@ -108,11 +109,11 @@ function currentRoute() {
 }
 
 function keepQuery(path) {
-  const params = new URLSearchParams(location.search);
-  const keep = new URLSearchParams();
-  if (params.get('demo') === '1') keep.set('demo', '1');
-  const q = keep.toString();
-  return q ? `${path}?${q}` : path;
+  const next = new URL(path, location.origin);
+  if (new URLSearchParams(location.search).get('demo') === '1') {
+    next.searchParams.set('demo', '1');
+  }
+  return `${next.pathname}${next.search}`;
 }
 
 function navigate(path, { replace = false } = {}) {
