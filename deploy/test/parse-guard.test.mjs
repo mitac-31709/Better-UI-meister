@@ -25,6 +25,16 @@ describe('inspectParse · 実 HTML は想定どおり', () => {
     assert.equal(r.ok, true, r.reasons.join('; '));
   });
 
+  test('週報詳細の編集画面', () => {
+    const html = auth('reports/8b293839-a910-4bd6-b468-4915b9cefd19/edit.html');
+    const r = inspectParse(
+      '/reports/8b293839-a910-4bd6-b468-4915b9cefd19/edit',
+      html,
+      parseReportDetail(html)
+    );
+    assert.equal(r.ok, true, r.reasons.join('; '));
+  });
+
   test('注文', () => {
     const html = auth('orders.html');
     const r = inspectParse('/orders', html, parseOrders(html));

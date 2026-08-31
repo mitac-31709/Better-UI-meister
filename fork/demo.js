@@ -164,7 +164,7 @@ export function demoReports(opts = {}) {
 
 export async function demoReport(id, opts = {}) {
   const data = await demoReports(opts);
-  const r = (data.reports || []).find((x) => x.id === Number(id));
+  const r = (data.reports || []).find((x) => String(x.id) === String(id));
   if (!r) throw new Error('週報が見つかりません');
   return {
     source: data.source,

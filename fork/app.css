@@ -850,6 +850,12 @@ kbd {
   color: var(--color-ink-2);
 }
 .cell--num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell__sub {
+  display: block;
+  margin-top: var(--space-3xs);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
 
 .row__open {
   display: block;

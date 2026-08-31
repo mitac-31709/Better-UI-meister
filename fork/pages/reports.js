@@ -22,6 +22,23 @@ export const meta = { route: '/reports', nav: '週報', title: '週報一覧' };
 const SORT_KEYS = ['title', 'periodStart', 'status', 'due', 'createdAt'];
 const state = { q: '', status: 'all', sortKey: 'due', sortDir: 'asc', selectedId: null };
 
+function sameId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+function parseReportQueryId(raw) {
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+  return null;
+}
+
 export async function load(ctx, opts = {}) {
   return ctx.demo ? demoReports() : api.reports(opts);
 }
@@ -62,6 +79,7 @@ export function render(data, ctx) {
     return {
       id: r.id,
       title: r.title || '',
+      subtitle: r.subtitle || '',
       status: r.status || '',
       dueISO,
       createdISO: r.createdAtISO ?? null,
@@ -111,7 +129,7 @@ export function render(data, ctx) {
       .sort((a, b) => {
         const x = sortValue(a) ?? '';
         const y = sortValue(b) ?? '';
-        if (x === y) return (a.id ?? 0) - (b.id ?? 0);
+        if (x === y) return String(a.id ?? '').localeCompare(String(b.id ?? ''), 'en');
         return (x > y ? 1 : -1) * dir;
       });
   }
@@ -125,8 +143,8 @@ export function render(data, ctx) {
     const key = p.get('sort_by');
     if (SORT_KEYS.includes(key)) state.sortKey = key;
     state.sortDir = p.get('sort_direction') === 'desc' ? 'desc' : 'asc';
-    const id = Number(p.get('report_id'));
-    state.selectedId = Number.isFinite(id) && id > 0 ? id : null;
+    const id = parseReportQueryId(p.get('report_id'));
+    state.selectedId = id;
   }
 
   function syncUrl() {
@@ -223,10 +241,15 @@ export function render(data, ctx) {
           return {
             id: r.id,
             idPrefix: 'report',       // 元 UI の行 ID 規約を保つ
-            selected: r.id === state.selectedId,
+            selected: sameId(r.id, state.selectedId),
             onOpen: (id) => openDetail(id),
             cells: [
-              { label: 'タイトル', value: r.title },
+              {
+                label: 'タイトル',
+                value: r.subtitle
+                  ? [r.title, h('span', { class: 'cell__sub', text: r.subtitle })]
+                  : r.title
+              },
               { label: '期間', value: r.periodText, className: 'cell--num' },
               { label: 'ステータス', value: statusPill(r.status) },
               { label: '期限', value: due.nodes, className: 'cell--num', tone: due.tone },
@@ -270,7 +293,7 @@ export function render(data, ctx) {
       ? 'これは UI 改善の検証用のフォークです。表示しているデータはダミーで、'
         + 'ステータスは元アプリで確認できた「未完了 / 完了」の 2 値だけを使っています。'
       : 'これは UI 改善の検証用のフォークです。一覧は元アプリの週報一覧をそのまま読んで'
-        + '表示しています。行を開くと `/reports/:id` の詳細を取り、項目名は元アプリの'
+        + '表示しています。行を開くと `/reports/:id/edit` の詳細項目を取り、項目名は元アプリの'
         + 'ラベルをそのまま使います。ステータスは元アプリで確認できた「未完了 / 完了」の'
         + '2 値だけを使い、実データへの保存はこの画面からは送りません。';
   }
@@ -345,17 +368,22 @@ export function render(data, ctx) {
       text: editable ? '変更は自動で保存されます' : ''
     });
 
-    const metaEntries = (r.meta && r.meta.length
-      ? r.meta.map((m) => [m.label, m.value])
-      : [
-        ['期間', r.startISO && r.endISO
-          ? `${fmtDate(r.startISO)} – ${fmtDate(r.endISO)}` : (r.periodText || '—')],
-        ['ステータス', statusPill(r.status)],
-        ['期限', rest && r.status !== '完了'
-          ? `${r.dueText}（${rest.glyph ? `${rest.glyph} ` : ''}${rest.text}）`
-          : (r.dueText || '—')],
-        ['作成日', r.createdText || '—']
-      ]);
+    const fallbackMeta = [
+      ['期間', r.startISO && r.endISO
+        ? `${fmtDate(r.startISO)} – ${fmtDate(r.endISO)}` : (r.periodText || '—')],
+      ['ステータス', statusPill(r.status)],
+      ['期限', rest && r.status !== '完了'
+        ? `${r.dueText}（${rest.glyph ? `${rest.glyph} ` : ''}${rest.text}）`
+        : (r.dueText || '—')],
+      ['作成日', r.createdText || '—']
+    ];
+    const fromDetail = (r.meta || []).map((m) => [m.label, m.value]).filter((e) => e[0]);
+    const seen = new Set(fromDetail.map((e) => e[0]));
+    const metaEntries = fromDetail.length
+      ? [...fromDetail, ...fallbackMeta.filter((e) => !seen.has(e[0])
+        && !(e[0] === '期限' && seen.has('提出期限'))
+        && !(e[0] === '期間' && seen.has('作業期間')))]
+      : fallbackMeta;
 
     const fieldNodes = fields.map((f, i) => {
       const fieldId = f.name === 'content' || i === 0 ? 'panel-text' : `panel-field-${f.name}`;
@@ -424,7 +452,7 @@ export function render(data, ctx) {
   }
 
   function openDetail(id, { focus = true } = {}) {
-    const r = rows.find((x) => x.id === id);
+    const r = rows.find((x) => sameId(x.id, id));
     if (!r) return;
 
     state.selectedId = id;
@@ -501,7 +529,7 @@ export function render(data, ctx) {
 
   // 削除は確認せず実行して、元に戻せるようにする
   function removeReport(id) {
-    const index = rows.findIndex((x) => x.id === id);
+    const index = rows.findIndex((x) => sameId(x.id, id));
     if (index < 0) return;
     const [removed] = rows.splice(index, 1);
 

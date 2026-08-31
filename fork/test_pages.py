@@ -273,16 +273,18 @@ def check_reports(page) -> None:
     render(page, "reports", wrap({
         "columns": columns, "empty": empty, "counts": {"未完了": 1, "完了": 0, "合計": 1},
         "reports": [{
-            "id": 114, "title": "第14週 週報", "period": "07/27 – 08/02",
-            "status": "未完了", "due": "2026/08/05", "createdAt": "2026/07/28",
-            "dueISO": "2026-08-05", "createdAtISO": "2026-07-28",
-            "periodStartISO": "2026-07-27", "periodEndISO": "2026-08-02",
+            "id": "8b293839-a910-4bd6-b468-4915b9cefd19",
+            "title": "10/01のレポート", "subtitle": "10: (未定)",
+            "period": "期間未設定",
+            "status": "未完了", "due": "2026/10/01 17:00", "createdAt": "2026/08/24 13:48",
+            "dueISO": "2026-10-01", "createdAtISO": "2026-08-24",
+            "periodStartISO": None, "periodEndISO": None,
             "body": "",
             "fields": [
-                {"name": "content", "label": "今週の活動", "value": "測定をやり直し中。",
+                {"name": "shortnote", "label": "概要", "value": "測定をやり直し中。",
                  "lockedBy": None}
             ],
-            "meta": [{"label": "期間", "value": "07/27 – 08/02"}],
+            "meta": [{"label": "提出期限", "value": "2026/10/01 17:00"}],
             "timeline": [],
             "detailLoaded": True
         }]
@@ -290,12 +292,14 @@ def check_reports(page) -> None:
     page.locator(".row__open").first.click()
     page.wait_for_timeout(200)
     body = page.inner_text("#panel")
-    check("今週の活動" in body, f"元アプリの項目名が出ていない: {body!r}")
+    check("概要" in body, f"元アプリの項目名が出ていない: {body!r}")
     check(page.input_value("#panel-text") == "測定をやり直し中。",
           f"詳細の本文が出ていない: {page.input_value('#panel-text')!r}")
     check(page.locator("#panel-save").count() == 0,
           "実データなのに保存ボタンを出している")
-    print("  週報: 詳細の項目名を素通し / 実データは保存ボタンなし")
+    check("10: (未定)" in page.inner_text("#view"),
+          "タイトル下のチーム名が出ていない")
+    print("  週報: 詳細の項目名を素通し / 実データは保存ボタンなし / UUID 行")
 
 
 def main() -> int:

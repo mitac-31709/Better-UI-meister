@@ -44,10 +44,12 @@ export const PAGE_EXPECTATIONS = {
   }
 };
 
-/** `/reports/114` を `/reports/:id` の想定に寄せる。 */
+/** `/reports/114` や `/reports/<uuid>/edit` を `/reports/:id` の想定に寄せる。 */
 export function expectationPath(path) {
   if (PAGE_EXPECTATIONS[path]) return path;
-  if (/^\/reports\/\d+$/.test(path)) return '/reports/:id';
+  if (/^\/reports\/(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/edit)?$/i.test(path)) {
+    return '/reports/:id';
+  }
   return path;
 }
 
