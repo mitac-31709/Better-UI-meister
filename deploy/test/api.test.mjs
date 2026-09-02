@@ -9,8 +9,8 @@
  * 認証は利用者ごと。Worker は資格情報を持たず、元アプリのセッション Cookie を
  * 暗号化して自ドメインの Cookie に入れるだけ。
  *
- * 取得したアカウントはどのリストも 0 件なので、件数は 0 を期待する。
- * 中身が入ったら各 `items` の形も検証する。
+ * 取得したアカウントに週報がある場合は行の形と詳細も検証する。
+ * 0 件なら空状態だけを見る。
  */
 
 import assert from 'node:assert/strict';
@@ -77,7 +77,8 @@ test('/api/health は資格情報を持たず利用者ごとの認証だと報�
 });
 
 test('セッション無しでは全ての取得口が 401', async () => {
-  for (const path of ['/api/me', '/api/dashboard', '/api/reports', '/api/orders',
+  for (const path of ['/api/me', '/api/dashboard', '/api/reports', '/api/reports/1',
+    '/api/orders',
     '/api/equipments', '/api/loans', '/api/notifications',
     '/api/notifications/unread_count']) {
     const res = await getNoAuth(path);
@@ -134,7 +135,7 @@ test('/api/dashboard', async () => {
   assert.ok(body.notice, '調整中の表示が取れていない');
 });
 
-test('/api/reports は列見出しと集計と空状態を元 HTML から取る', async () => {
+test('/api/reports は列見出しと集計を元 HTML から取る', async () => {
   const body = await (await get('/api/reports')).json();
   assertLiveOrCached(body, '/api/reports');
   assert.deepEqual(body.columns.map((c) => c.label),
@@ -142,10 +143,36 @@ test('/api/reports は列見出しと集計と空状態を元 HTML から取る'
   for (const k of ['未完了', '完了', '合計']) {
     assert.equal(typeof body.counts[k], 'number', `counts.${k}`);
   }
-  assert.equal(body.empty.title, '週報がありません');
+  if (body.reports.length === 0) {
+    assert.equal(body.empty?.title, '週報がありません');
+  }
   assert.equal(body.reports.length, body.counts.合計, '行数と合計が食い違う');
   for (const r of body.reports) {
     assert.ok(['未完了', '完了'].includes(r.status), `想定外のステータス: ${r.status}`);
+    assert.ok(r.id != null, 'id が無い');
+    assert.ok(r.title, 'title が空');
+  }
+});
+
+test('/api/reports/:id は編集画面の項目を返す', async () => {
+  const list = await (await get('/api/reports')).json();
+  if (!list.reports.length) {
+    assert.ok(true, '週報が 0 件なので詳細はスキップ');
+    return;
+  }
+  const id = list.reports[0].id;
+  const res = await get(`/api/reports/${id}`);
+  assert.equal(res.status, 200, await res.clone().text());
+  const body = await res.json();
+  assertLiveOrCached(body, `/api/reports/${id}`);
+  assert.equal(String(body.id), String(id));
+  assert.ok(Array.isArray(body.fields), 'fields が無い');
+  const names = body.fields.map((f) => f.name);
+  for (const want of ['shortnote', 'progress', 'issue', 'plan']) {
+    assert.ok(names.includes(want), `${want} が無い: ${names.join(',')}`);
+  }
+  for (const f of body.fields) {
+    assert.ok(f.label, `${f.name} の label が空`);
   }
 });
 
@@ -154,8 +181,10 @@ test('/api/orders は列見出し 6 つと空状態を取る', async () => {
   assertLiveOrCached(body, '/api/orders');
   assert.deepEqual(body.columns.map((c) => c.label),
     ['商品', '単価', '数量', '合計', 'ステータス', '作成日']);
-  assert.equal(body.empty.title, '注文がありません');
   assert.ok(Array.isArray(body.orders));
+  if (body.orders.length === 0) {
+    assert.equal(body.empty?.title, '注文がありません');
+  }
   for (const o of body.orders) {
     for (const k of ['unitPriceValue', 'quantityValue', 'totalValue']) {
       assert.ok(o[k] === null || typeof o[k] === 'number',

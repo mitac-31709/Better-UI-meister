@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meister Management System</title>
 
+<link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -105,7 +106,13 @@
 
   <main class="main" id="main">
     <!-- データの出どころ。実データとデモを取り違えないよう全画面で出す。 -->
-    <p class="datasource" id="data-source" hidden></p>
+    <div class="datasource" id="data-source" hidden>
+      <span class="datasource__note" id="data-source-note"></span>
+      <button class="datasource__refresh" type="button" id="data-source-refresh"
+              aria-busy="false">
+        更新
+      </button>
+    </div>
     <div id="view" class="view"></div>
   </main>
 </div>

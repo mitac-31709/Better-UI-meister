@@ -210,6 +210,7 @@ export function renderNotifySettings({ watcher, isDemo }) {
     class: 'notify-delivery__lede',
     text: '新しい通知が来たとき、この端末のブラウザと Discord へ転送できます。'
       + ' Discord は保存時にテストし、成功したらタブを閉じても送る登録をします。'
+      + ' 元アプリのログインが切れたときも Discord に知らせます。'
   }),
   h('div', { class: 'notify-settings' },
     h('label', { class: 'switch' },
@@ -303,7 +304,7 @@ function summaryLabel(prefs) {
 
 function backgroundNote(prefs) {
   if (prefs.subscriptionId) {
-    return 'バックグラウンド配信は登録済みです（1 時間間隔。元アプリのセッションが有効な間）。';
+    return 'バックグラウンド配信は登録済みです（1 時間間隔。元アプリのセッションが切れたら Discord に知らせて止めます）。';
   }
   return 'Discord を保存すると、タブを閉じても Worker が 1 時間おきに未読を見て送ります。';
 }

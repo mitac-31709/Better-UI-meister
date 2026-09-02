@@ -380,8 +380,9 @@ button { font: inherit; color: inherit; }
 /* データの出どころ。実データかデモかを取り違えないよう全画面で出す。 */
 .datasource {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2xs);
+  gap: var(--space-2xs) var(--space-xs);
   margin-bottom: var(--space-md);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
@@ -400,6 +401,54 @@ button { font: inherit; color: inherit; }
 .datasource[data-kind="cache"]::before { background: var(--color-accent); }
 .datasource[data-kind="stale"]::before { background: var(--color-warn); }
 .datasource[data-kind="demo"]::before { background: var(--color-warn); }
+
+.datasource__note { min-width: 0; }
+
+/* 取得時刻の横。行の 2xs に合わせ、タッチ領域だけ 44px に広げる。 */
+.datasource__refresh {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  margin: 0;
+  padding: var(--space-3xs) var(--space-xs);
+  border: var(--rule-fine) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  letter-spacing: var(--tracking-label);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out),
+              color var(--dur-micro) var(--ease-out);
+}
+.datasource__refresh::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--touch-min) - 1.25rem) / -2) calc(-1 * var(--space-2xs));
+}
+@media (hover: hover) {
+  .datasource__refresh:hover:not(:disabled) { background: var(--color-paper-2); }
+}
+.datasource__refresh:active:not(:disabled) { background: var(--color-rule); }
+.datasource__refresh:disabled { color: var(--color-muted); }
+.datasource__refresh[data-state="loading"] { pointer-events: none; }
+.datasource__refresh[data-state="loading"]::after {
+  content: "";
+  display: block;
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: var(--space-2xs);
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: spin 700ms linear infinite;
+}
+.datasource__refresh[data-state="error"] { color: var(--color-warn); }
+.datasource__refresh[data-state="success"]::after { content: "✓"; margin-left: var(--space-2xs); }
 
 .loading {
   padding: var(--space-xl) 0;
@@ -850,6 +899,12 @@ kbd {
   color: var(--color-ink-2);
 }
 .cell--num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cell__sub {
+  display: block;
+  margin-top: var(--space-3xs);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
 
 .row__open {
   display: block;
@@ -1042,6 +1097,110 @@ kbd {
   letter-spacing: var(--tracking-label);
   color: var(--color-muted);
   white-space: nowrap;
+}
+
+/* ダッシュボード（フォーク独自）。左に期限の近い仕事、右に件数。 */
+.board__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 11rem;
+  gap: var(--space-xl);
+  align-items: start;
+}
+.board__kicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.board__title {
+  margin-top: var(--space-xs);
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  font-size: var(--text-2xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.board__due {
+  margin-top: var(--space-xs);
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.board__due--over { color: var(--color-warn); }
+.board__empty {
+  margin-top: var(--space-sm);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+.board__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+.board__queue { margin-top: var(--space-lg); }
+.board__section { margin-top: var(--space-xl); }
+.board__tally {
+  display: flex;
+  flex-direction: column;
+  border-top: var(--rule-fine) solid var(--color-ink);
+}
+.board__tally-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) 0;
+  border: 0;
+  border-bottom: var(--rule-fine) solid var(--color-rule);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .board__tally-item:hover .board__tally-value { color: var(--color-accent); }
+}
+.board__tally-item:active { background: var(--color-paper-2); }
+.board__tally-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+.board__tally-value {
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  font-size: var(--text-xl);
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.board__index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
+  border-top: var(--rule-fine) solid var(--color-rule);
+}
+.board__index-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .board__index-link:hover { color: var(--color-accent); }
 }
 
 /* ダッシュボードの「調整中」のような、まだ中身が無いことの表示 */
@@ -1358,6 +1517,7 @@ body:has(.panel:not([hidden])) .toasts {
 @media (max-width: 47.99rem) {
   .page-head { align-items: flex-start; flex-direction: column; }
   .summary { gap: var(--space-md); }
+  .board__layout { grid-template-columns: minmax(0, 1fr); }
 
   .field--search { max-width: none; flex-basis: 100%; }
   .toolbar__count { margin-left: 0; padding-top: 0; }

@@ -170,6 +170,18 @@ export const panel = {
     (first || document.getElementById('panel-close')).focus();
   },
 
+  /** 開いたまま中身だけ差し替える（詳細の遅延読み込み用）。 */
+  update({ title, body, actions } = {}) {
+    if (!this.isOpen()) return;
+    if (title != null) document.getElementById('panel-title').textContent = title;
+    if (body != null) {
+      document.getElementById('panel-body').replaceChildren(...[body].flat().filter(Boolean));
+    }
+    if (actions != null) {
+      document.getElementById('panel-foot').replaceChildren(...(actions || []));
+    }
+  },
+
   /** 画面遷移で閉じるときは silent。開いていた画面の onClose が
    *  遷移後の URL に古いクエリを書き戻してしまうため。 */
   close({ silent = false } = {}) {
