@@ -40,7 +40,8 @@
 | 元アプリのパス | 返すもの |
 | --- | --- |
 | `/dashboard` `/reports` `/orders` `/equipments` `/loans` `/notifications` | HTML |
-| `/reports/:id` | HTML（Turbo Frame の断片） |
+| `/reports/:id` | HTML（Turbo Frame。タイトル・提出期限・作業期間・コメント。本文項目は無い） |
+| `/reports/:id/edit` | HTML（Turbo Frame。`data-field-name` 付きの本文項目） |
 | `/notifications/unread_count` | **JSON** `{"count":0}` — 唯一 |
 | `/reports/:id/auto_save` | POST で JSON を受ける（このフォークからは呼ばない） |
 

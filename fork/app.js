@@ -6,6 +6,7 @@
  * `?demo=1` を付けたときと、`/api/*` が無い静的配信のときは同梱のデモデータに落ちる。
  *
  * キャッシュ表示のあとは `?refresh=1` で裏取得し、取れたら画面を差し替える。
+ * 取得時刻の横の「更新」でも同じ再取得を起こせる。
  * レールから行ける他画面は先読みして遷移を速くする。
  */
 
@@ -42,6 +43,8 @@ const el = {
   app: document.getElementById('app'),
   view: document.getElementById('view'),
   source: document.getElementById('data-source'),
+  sourceNote: document.getElementById('data-source-note'),
+  sourceRefresh: document.getElementById('data-source-refresh'),
   badge: document.getElementById('notification-badge'),
   userName: document.getElementById('user-name'),
   userMeta: document.getElementById('user-meta'),
@@ -65,9 +68,18 @@ const ctx = {
 ctx.today.setHours(0, 0, 0, 0);
 
 // ── データの出どころ表示 ──────────────────────────────
+let refreshSeq = 0;
+
+function applyRefreshBusy(busy) {
+  el.sourceRefresh.disabled = busy;
+  el.sourceRefresh.setAttribute('aria-busy', busy ? 'true' : 'false');
+  if (busy) el.sourceRefresh.dataset.state = 'loading';
+  else el.sourceRefresh.removeAttribute('data-state');
+}
+
 function setSource(kind, note) {
   el.source.dataset.kind = kind;
-  el.source.textContent = note;
+  el.sourceNote.textContent = note;
   el.source.hidden = false;
 }
 
@@ -94,6 +106,7 @@ function noteFor(data) {
 }
 
 function paint(route, data) {
+  if (window.__haltAppPaint) return;
   const page = BY_ROUTE.get(route);
   if (!page || !data) return;
   const [kind, note] = noteFor(data);
@@ -108,11 +121,11 @@ function currentRoute() {
 }
 
 function keepQuery(path) {
-  const params = new URLSearchParams(location.search);
-  const keep = new URLSearchParams();
-  if (params.get('demo') === '1') keep.set('demo', '1');
-  const q = keep.toString();
-  return q ? `${path}?${q}` : path;
+  const next = new URL(path, location.origin);
+  if (new URLSearchParams(location.search).get('demo') === '1') {
+    next.searchParams.set('demo', '1');
+  }
+  return `${next.pathname}${next.search}`;
 }
 
 function navigate(path, { replace = false } = {}) {
@@ -157,8 +170,13 @@ async function render(route) {
 
   // タブ内メモリがあれば即描画（遷移を待たせない）
   const mem = recall(route);
-  if (mem) paint(route, mem);
-  else el.view.replaceChildren(h('p', { class: 'loading', text: '読み込み中…' }));
+  if (mem) {
+    applyRefreshBusy(Boolean(mem.revalidating || mem.source === 'stale'));
+    paint(route, mem);
+  } else {
+    applyRefreshBusy(false);
+    el.view.replaceChildren(h('p', { class: 'loading', text: '読み込み中…' }));
+  }
 
   let data;
   try {
@@ -166,6 +184,7 @@ async function render(route) {
   } catch (e) {
     if (token !== renderToken) return;
     if (e instanceof Unauthenticated) return showSignIn(e.message);
+    applyRefreshBusy(false);
     if (!mem) {
       el.view.replaceChildren(errorBlock(e.message, () => render(route)));
       setSource('demo', `元アプリから取得できず（${e.message}）`);
@@ -175,21 +194,30 @@ async function render(route) {
   if (token !== renderToken) return;
 
   remember(route, data);
+  const willRefresh = Boolean(data.revalidating || data.source === 'stale');
+  if (willRefresh) applyRefreshBusy(true);
   if (contentChanged(mem, data) || !mem) paint(route, data);
   else setSource(...noteFor(data));
 
   // キャッシュ表示なら元を取り直して、取れたら画面を差し替える（デモも同じ）
-  if (data.revalidating || data.source === 'stale') {
-    liveRefresh(route, token);
-  }
+  if (willRefresh) liveRefresh(route, token);
 
   prefetchReachable(route);
+}
+
+/** 取得時刻の横の「更新」。鮮度に関係なく元から取り直す。 */
+function requestRefresh() {
+  if (el.sourceRefresh.disabled) return;
+  // 進行中の render() が古いキャッシュで上書きしないよう世代を進める
+  liveRefresh(currentRoute(), ++renderToken);
 }
 
 /** 裏で refresh=1 し、今の画面なら DOM を更新する。 */
 async function liveRefresh(route, token) {
   const page = BY_ROUTE.get(route);
   if (!page) return;
+  const seq = ++refreshSeq;
+  if (token === renderToken && currentRoute() === route) applyRefreshBusy(true);
   try {
     const fresh = await page.load(ctx, { refresh: true });
     if (token !== renderToken || currentRoute() !== route) {
@@ -203,6 +231,10 @@ async function liveRefresh(route, token) {
   } catch (e) {
     if (e instanceof Unauthenticated) return showSignIn(e.message);
     // 裏更新の失敗は今の表示を残す
+  } finally {
+    if (seq === refreshSeq && token === renderToken && currentRoute() === route) {
+      applyRefreshBusy(false);
+    }
   }
 }
 
@@ -407,6 +439,8 @@ el.navToggle.addEventListener('click', () => {
 });
 
 wirePanel();
+
+el.sourceRefresh.addEventListener('click', requestRefresh);
 
 // ── 起動 ───────────────────────────────────────────
 async function boot() {

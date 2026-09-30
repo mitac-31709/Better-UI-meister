@@ -10,7 +10,7 @@ out="$here/public"
 rm -rf "$out"
 mkdir -p "$out/pages"
 
-for f in index.html tokens.css app.css favicon.svg \
+for f in index.html tokens.css app.css favicon.svg favicon.ico \
          app.js api.js ui.js format.js demo.js notify.js notify-settings.js page-store.js; do
   cp "$src/$f" "$out/$f"
 done

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, test } from 'node:test';
 
-import { parseReportsPage } from '../src/parse.js';
+import { parseReportsPage, parseReportDetail } from '../src/parse.js';
 import {
   parseDashboard, parseEquipments, parseLoans, parseNotifications, parseOrders
 } from '../src/parse-pages.js';
@@ -22,6 +22,16 @@ describe('inspectParse · 実 HTML は想定どおり', () => {
   test('週報', () => {
     const html = auth('reports.html');
     const r = inspectParse('/reports', html, parseReportsPage(html));
+    assert.equal(r.ok, true, r.reasons.join('; '));
+  });
+
+  test('週報詳細の編集画面', () => {
+    const html = auth('reports/8b293839-a910-4bd6-b468-4915b9cefd19/edit.html');
+    const r = inspectParse(
+      '/reports/8b293839-a910-4bd6-b468-4915b9cefd19/edit',
+      html,
+      parseReportDetail(html)
+    );
     assert.equal(r.ok, true, r.reasons.join('; '));
   });
 
@@ -53,6 +63,30 @@ describe('inspectParse · 実 HTML は想定どおり', () => {
     const html = auth('notifications.html');
     const r = inspectParse('/notifications', html, parseNotifications(html));
     assert.equal(r.ok, true, r.reasons.join('; '));
+  });
+});
+
+describe('inspectParse · 週報詳細', () => {
+  const detail = `
+    <html><body><main>
+    <turbo-frame id="side_panel">
+      <h2>第14週 週報</h2>
+      <label for="c">今週の活動</label>
+      <textarea id="c" data-field-name="content">本文</textarea>
+    </turbo-frame>
+    </main></body></html>`;
+
+  test('合成した詳細は想定どおり', () => {
+    const r = inspectParse('/reports/114', detail, parseReportDetail(detail));
+    assert.equal(r.ok, true, r.reasons.join('; '));
+  });
+
+  test('data-field-name が落ちたら理由を返す', () => {
+    const parsed = parseReportDetail(detail);
+    parsed.fields = [];
+    const r = inspectParse('/reports/114', detail, parsed);
+    assert.equal(r.ok, false);
+    assert.match(r.reasons.join('\n'), /content/);
   });
 });
 

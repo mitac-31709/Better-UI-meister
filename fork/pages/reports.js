@@ -22,13 +22,29 @@ export const meta = { route: '/reports', nav: '週報', title: '週報一覧' };
 const SORT_KEYS = ['title', 'periodStart', 'status', 'due', 'createdAt'];
 const state = { q: '', status: 'all', sortKey: 'due', sortDir: 'asc', selectedId: null };
 
+function sameId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+function parseReportQueryId(raw) {
+  if (!raw) return null;
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+    return raw.toLowerCase();
+  }
+  return null;
+}
+
 export async function load(ctx, opts = {}) {
   return ctx.demo ? demoReports(opts) : api.reports(opts);
 }
 
 export function render(data, ctx) {
   const today = ctx.demo ? new Date(`${DEMO_TODAY}T00:00:00`) : ctx.today;
-  const editable = ctx.demo;          // 実データには書き込み口を用意していない
 
   let rows = (data.reports || []).map(normalize);
   const serverCounts = data.counts?.合計 != null ? data.counts : null;
@@ -63,6 +79,7 @@ export function render(data, ctx) {
     return {
       id: r.id,
       title: r.title || '',
+      subtitle: r.subtitle || '',
       status: r.status || '',
       dueISO,
       createdISO: r.createdAtISO ?? null,
@@ -73,7 +90,16 @@ export function render(data, ctx) {
       dueText: r.due || fmtDate(dueISO),
       createdText: r.createdAt || fmtDate(r.createdAtISO),
       body: r.body ?? '',
-      lockedBy: r.lockedBy || null
+      lockedBy: r.lockedBy || null,
+      fields: Array.isArray(r.fields) ? r.fields.map((f) => ({
+        name: f.name || 'content',
+        label: f.label || '本文',
+        value: f.value ?? '',
+        lockedBy: f.lockedBy || null
+      })) : null,
+      meta: Array.isArray(r.meta) ? r.meta : null,
+      timeline: Array.isArray(r.timeline) ? r.timeline : null,
+      detailLoaded: Boolean(r.detailLoaded)
     };
   }
 
@@ -103,7 +129,7 @@ export function render(data, ctx) {
       .sort((a, b) => {
         const x = sortValue(a) ?? '';
         const y = sortValue(b) ?? '';
-        if (x === y) return (a.id ?? 0) - (b.id ?? 0);
+        if (x === y) return String(a.id ?? '').localeCompare(String(b.id ?? ''), 'en');
         return (x > y ? 1 : -1) * dir;
       });
   }
@@ -117,8 +143,8 @@ export function render(data, ctx) {
     const key = p.get('sort_by');
     if (SORT_KEYS.includes(key)) state.sortKey = key;
     state.sortDir = p.get('sort_direction') === 'desc' ? 'desc' : 'asc';
-    const id = Number(p.get('report_id'));
-    state.selectedId = Number.isFinite(id) && id > 0 ? id : null;
+    const id = parseReportQueryId(p.get('report_id'));
+    state.selectedId = id;
   }
 
   function syncUrl() {
@@ -215,10 +241,15 @@ export function render(data, ctx) {
           return {
             id: r.id,
             idPrefix: 'report',       // 元 UI の行 ID 規約を保つ
-            selected: r.id === state.selectedId,
+            selected: sameId(r.id, state.selectedId),
             onOpen: (id) => openDetail(id),
             cells: [
-              { label: 'タイトル', value: r.title },
+              {
+                label: 'タイトル',
+                value: r.subtitle
+                  ? [r.title, h('span', { class: 'cell__sub', text: r.subtitle })]
+                  : r.title
+              },
               { label: '期間', value: r.periodText, className: 'cell--num' },
               { label: 'ステータス', value: statusPill(r.status) },
               { label: '期限', value: due.nodes, className: 'cell--num', tone: due.tone },
@@ -262,8 +293,9 @@ export function render(data, ctx) {
       ? 'これは UI 改善の検証用のフォークです。表示しているデータはダミーで、'
         + 'ステータスは元アプリで確認できた「未完了 / 完了」の 2 値だけを使っています。'
       : 'これは UI 改善の検証用のフォークです。一覧は元アプリの週報一覧をそのまま読んで'
-        + '表示しています。ステータスは元アプリで確認できた「未完了 / 完了」の 2 値だけを'
-        + '使い、本文は一覧の HTML に含まれないため読み取り専用です。';
+        + '表示しています。行を開くと `/reports/:id/edit` の詳細項目を取り、項目名は元アプリの'
+        + 'ラベルをそのまま使います。ステータスは元アプリで確認できた「未完了 / 完了」の'
+        + '2 値だけを使い、実データへの保存はこの画面からは送りません。';
   }
 
   function resetFilters() {
@@ -295,64 +327,140 @@ export function render(data, ctx) {
   }
 
   // ── 詳細パネル ──────────────────────────────────
-  function openDetail(id, { focus = true } = {}) {
-    const r = rows.find((x) => x.id === id);
-    if (!r) return;
+  function applyDetail(r, detail) {
+    if (!detail || typeof detail !== 'object') return;
+    if (detail.title) r.title = detail.title;
+    if (typeof detail.body === 'string') r.body = detail.body;
+    if (detail.lockedBy) r.lockedBy = detail.lockedBy;
+    if (Array.isArray(detail.fields)) {
+      r.fields = detail.fields.map((f) => ({
+        name: f.name || 'content',
+        label: f.label || '本文',
+        value: f.value ?? '',
+        lockedBy: f.lockedBy || null
+      }));
+      if (!r.body) {
+        r.body = r.fields.map((f) => f.value).filter(Boolean).join('\n\n');
+      }
+    }
+    if (Array.isArray(detail.meta)) r.meta = detail.meta;
+    if (Array.isArray(detail.timeline)) r.timeline = detail.timeline;
+    r.detailLoaded = true;
+  }
 
-    state.selectedId = id;
-    paint();
-    syncUrl();
+  function fieldList(r) {
+    if (Array.isArray(r.fields) && r.fields.length) return r.fields;
+    return [{
+      name: 'content',
+      label: '本文',
+      value: r.body || '',
+      lockedBy: r.lockedBy || null
+    }];
+  }
 
+  function buildDetailBody(r, { editable, loading = false, error = null } = {}) {
     const rest = dueRest(r.dueISO, today);
-    const locked = Boolean(r.lockedBy) || !editable;
+    const fields = fieldList(r);
+    const locked = Boolean(r.lockedBy) || fields.some((f) => f.lockedBy) || !editable;
 
     const saveState = h('span', {
       class: 'save-state', id: 'save-state', dataset: { state: 'idle' },
       text: editable ? '変更は自動で保存されます' : ''
     });
 
-    let saveTimer = null;
-    const textarea = h('textarea', {
-      class: 'input textarea', id: 'panel-text', rows: 8,
-      'aria-describedby': 'panel-text-hint',
-      readonly: locked || null,
-      placeholder: editable && !r.body ? 'この週にやったことを書く' : null,
-      oninput: (e) => {
-        r.body = e.target.value;
-        saveState.dataset.state = 'saving';
-        saveState.textContent = '保存中…';
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
-          saveState.dataset.state = 'saved';
-          saveState.textContent = '保存しました';
-        }, 500);
-      }
-    });
-    textarea.value = r.body || '';
+    const fallbackMeta = [
+      ['期間', r.startISO && r.endISO
+        ? `${fmtDate(r.startISO)} – ${fmtDate(r.endISO)}` : (r.periodText || '—')],
+      ['ステータス', statusPill(r.status)],
+      ['期限', rest && r.status !== '完了'
+        ? `${r.dueText}（${rest.glyph ? `${rest.glyph} ` : ''}${rest.text}）`
+        : (r.dueText || '—')],
+      ['作成日', r.createdText || '—']
+    ];
+    const fromDetail = (r.meta || []).map((m) => [m.label, m.value]).filter((e) => e[0]);
+    const seen = new Set(fromDetail.map((e) => e[0]));
+    const metaEntries = fromDetail.length
+      ? [...fromDetail, ...fallbackMeta.filter((e) => !seen.has(e[0])
+        && !(e[0] === '期限' && seen.has('提出期限'))
+        && !(e[0] === '期間' && seen.has('作業期間')))]
+      : fallbackMeta;
 
-    const body = [
-      metaList([
-        ['期間', r.startISO && r.endISO
-          ? `${fmtDate(r.startISO)} – ${fmtDate(r.endISO)}` : (r.periodText || '—')],
-        ['ステータス', statusPill(r.status)],
-        ['期限', rest && r.status !== '完了'
-          ? `${r.dueText}（${rest.glyph ? `${rest.glyph} ` : ''}${rest.text}）`
-          : (r.dueText || '—')],
-        ['作成日', r.createdText || '—']
-      ]),
-      h('div', { class: 'field' },
-        h('label', { class: 'field__label', for: 'panel-text', text: '本文' }),
+    const fieldNodes = fields.map((f, i) => {
+      const fieldId = f.name === 'content' || i === 0 ? 'panel-text' : `panel-field-${f.name}`;
+      const hintId = `${fieldId}-hint`;
+      let saveTimer = null;
+      const textarea = h('textarea', {
+        class: 'input textarea', id: fieldId, rows: 8,
+        'aria-describedby': hintId,
+        readonly: locked || Boolean(f.lockedBy) || null,
+        placeholder: editable && !f.value ? 'この週にやったことを書く' : null,
+        oninput: (e) => {
+          f.value = e.target.value;
+          if (f.name === 'content' || fields.length === 1) r.body = e.target.value;
+          saveState.dataset.state = 'saving';
+          saveState.textContent = '保存中…';
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => {
+            saveState.dataset.state = 'saved';
+            saveState.textContent = '保存しました';
+          }, 500);
+        }
+      });
+      textarea.value = f.value || '';
+      return h('div', { class: 'field' },
+        h('label', { class: 'field__label', for: fieldId, text: f.label || '本文' }),
         textarea,
-        h('p', { class: 'field__hint', id: 'panel-text-hint' }, saveState)),
+        h('p', { class: 'field__hint', id: hintId },
+          f.lockedBy
+            ? `${f.lockedBy} さんが編集中のため読み取り専用です`
+            : (i === fields.length - 1 ? saveState : null)));
+    });
+
+    const timeline = (r.timeline || []).filter((t) => t && (t.text || t.at));
+    const history = timeline.length
+      ? h('div', { class: 'field' },
+        h('p', { class: 'field__label', text: '履歴' }),
+        ...timeline.map((t) => h('p', {
+          class: 'field__hint',
+          text: [t.at, t.text].filter(Boolean).join(' · ')
+        })))
+      : null;
+
+    return [
+      metaList(metaEntries),
+      loading && h('p', {
+        class: 'field__hint', id: 'panel-detail-status',
+        text: '詳細を読み込み中…'
+      }),
+      error && h('p', {
+        class: 'form-error', id: 'panel-detail-error',
+        text: error
+      }),
+      ...fieldNodes,
+      history,
       locked && h('p', { class: 'lock', id: 'panel-lock' },
         h('span', { 'aria-hidden': 'true', text: '●' }),
         h('span', {
           id: 'panel-lock-text',
           text: r.lockedBy
             ? `${r.lockedBy} さんが編集中のため読み取り専用です`
-            : '本文は元アプリの一覧からは取得できないため読み取り専用です'
+            : (editable
+              ? '読み取り専用です'
+              : '実データへの保存はこの画面からは送りません。元アプリで編集できます。')
         }))
     ];
+  }
+
+  function openDetail(id, { focus = true } = {}) {
+    const r = rows.find((x) => sameId(x.id, id));
+    if (!r) return;
+
+    state.selectedId = id;
+    paint();
+    syncUrl();
+
+    const editable = ctx.demo;
+    const needsFetch = !ctx.demo && !r.detailLoaded && r.id != null;
 
     const save = h('button', {
       class: 'btn btn--primary', type: 'button', id: 'panel-save',
@@ -360,43 +468,68 @@ export function render(data, ctx) {
         save.dataset.state = 'loading';
         setTimeout(() => {
           save.dataset.state = 'success';
-          saveState.dataset.state = 'saved';
-          saveState.textContent = '保存しました';
+          const saveState = document.getElementById('save-state');
+          if (saveState) {
+            saveState.dataset.state = 'saved';
+            saveState.textContent = '保存しました';
+          }
           setTimeout(() => { delete save.dataset.state; }, 1200);
         }, 400);
       }
     }, '保存');
 
+    const actions = [
+      editable ? save : null,
+      h('button', {
+        class: 'btn btn--secondary', type: 'button', id: 'panel-cancel',
+        onclick: () => panel.close()
+      }, '閉じる'),
+      h('button', {
+        class: 'btn btn--danger', type: 'button', id: 'panel-delete',
+        onclick: () => removeReport(id)
+      }, '削除')
+    ].filter(Boolean);
+
     panel.open({
       eyebrow: '週報',
       title: r.title,
-      body,
-      actions: [
-        save,
-        h('button', {
-          class: 'btn btn--secondary', type: 'button', id: 'panel-cancel',
-          onclick: () => panel.close()
-        }, '閉じる'),
-        h('button', {
-          class: 'btn btn--danger', type: 'button', id: 'panel-delete',
-          onclick: () => removeReport(id)
-        }, '削除')
-      ],
+      body: buildDetailBody(r, { editable, loading: needsFetch }),
+      actions,
       onClose: () => {
         state.selectedId = null;
         paint();
         syncUrl();
-        // フォーカスを呼び出した行へ返す
         return listHost.querySelector(`#report_${id} .row__open`);
       }
     });
 
     if (!focus) document.activeElement?.blur?.();
+
+    if (needsFetch) {
+      const loadDetail = ctx.demo ? demoReport(r.id) : api.report(r.id);
+      Promise.resolve(loadDetail).then((detail) => {
+        if (state.selectedId !== id) return;
+        applyDetail(r, detail);
+        panel.update({
+          title: r.title,
+          body: buildDetailBody(r, { editable, loading: false })
+        });
+      }).catch((e) => {
+        if (state.selectedId !== id) return;
+        panel.update({
+          body: buildDetailBody(r, {
+            editable,
+            loading: false,
+            error: e?.message || '詳細を読めませんでした'
+          })
+        });
+      });
+    }
   }
 
   // 削除は確認せず実行して、元に戻せるようにする
   function removeReport(id) {
-    const index = rows.findIndex((x) => x.id === id);
+    const index = rows.findIndex((x) => sameId(x.id, id));
     if (index < 0) return;
     const [removed] = rows.splice(index, 1);
 

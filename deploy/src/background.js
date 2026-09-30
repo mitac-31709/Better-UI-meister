@@ -97,6 +97,26 @@ export function buildDiscordPayload(items, { origin } = {}) {
   return { username: 'MMS', content, embeds };
 }
 
+const AUTH_EXPIRED_COLOR = 0xc4552d;
+
+/** 元アプリのセッションが切れたときの Discord 本文。 */
+export function buildAuthExpiredPayload({ origin } = {}) {
+  const embed = {
+    title: 'ログインの有効期限が切れました',
+    description: 'Meister のセッションが無効になったため、バックグラウンドの Discord 通知を止めました。'
+      + 'フォークに再ログインし、通知画面で Discord 連携を保存し直すと再開します。',
+    color: AUTH_EXPIRED_COLOR,
+    timestamp: new Date().toISOString(),
+    footer: { text: 'Meister Management System（バックグラウンド）' }
+  };
+  if (origin) embed.url = `${String(origin).replace(/\/$/, '')}/notifications`;
+  return {
+    username: 'MMS',
+    content: 'Meister のログインが切れたため、バックグラウンドの Discord 通知を止めました。',
+    embeds: [embed]
+  };
+}
+
 function b64url(bytes) {
   let s = '';
   for (const b of bytes) s += String.fromCharCode(b);
@@ -175,11 +195,21 @@ export async function processSubscription(sub, env, {
       ? `${e.status}: ${e.message}`
       : (e.message || String(e));
     const authFailed = e instanceof ApiError && e.status === 401;
+    let authNotifiedAt = sub.authNotifiedAt || null;
+    if (authFailed && !authNotifiedAt && sub.webhookUrl) {
+      try {
+        const forwarded = await forwardFn(sub.webhookUrl, buildAuthExpiredPayload({ origin }));
+        if (forwarded?.ok) authNotifiedAt = now().toISOString();
+      } catch {
+        // 認証切れの知らせが送れなくても購読は止める
+      }
+    }
     const next = {
       ...sub,
       updatedAt: now().toISOString(),
       lastError: message.slice(0, 300),
-      disabled: authFailed
+      disabled: authFailed,
+      authNotifiedAt
     };
     return { sub: next, sent: 0, skipped: false, error: message };
   }

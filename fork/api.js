@@ -49,6 +49,7 @@ export const api = {
 
   dashboard: (opts) => request('/api/dashboard', opts),
   reports: (opts) => request('/api/reports', opts),
+  report: (id, opts) => request(`/api/reports/${encodeURIComponent(id)}`, opts),
   orders: (opts) => request('/api/orders', opts),
   equipments: (opts) => request('/api/equipments', opts),
   loans: (opts) => request('/api/loans', opts),

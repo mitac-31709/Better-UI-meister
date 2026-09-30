@@ -2,9 +2,9 @@
  *
  *   node --test test/parse.test.mjs
  *
- * 集計・列見出し・空状態は実物（clone/site/auth/reports.html）で確かめる。
- * 行の構造は実物に 1 件も無いため、実 HTML の tbody に合成した行を差し込んで
- * 確かめる。この差分は README と parse.js に明記してある。
+ * 集計・列見出し・行は実物（clone/site/auth/reports.html）で確かめる。
+ * 詳細の本文項目は `/reports/:id/edit`、タイトルは `/reports/:id`。
+ * 数字 id の行は実 HTML の tbody に合成して、従来の形も壊していないことを見る。
  */
 
 import assert from 'node:assert/strict';
@@ -15,15 +15,21 @@ import { dirname, join } from 'node:path';
 
 import {
   parseReportsPage, parseCounts, parseColumns, parseEmptyState,
-  parseRows, toIso, splitRange, looksLikeSignIn, authenticityToken, text
+  parseRows, parseReportDetail, extractSidePanel, toIso, splitRange,
+  looksLikeSignIn, authenticityToken, text, parseIdToken
 } from '../src/parse.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPORTS = join(here, '../../clone/site/auth/reports.html');
 const SIGN_IN = join(here, '../../clone/site/public/users/sign_in.html');
+const LIVE_ID = '8b293839-a910-4bd6-b468-4915b9cefd19';
+const REPORT_SHOW = join(here, `../../clone/site/auth/reports/${LIVE_ID}.html`);
+const REPORT_EDIT = join(here, `../../clone/site/auth/reports/${LIVE_ID}/edit.html`);
 
 const html = readFileSync(REPORTS, 'utf8');
 const signInHtml = readFileSync(SIGN_IN, 'utf8');
+const showHtml = readFileSync(REPORT_SHOW, 'utf8');
+const editHtml = readFileSync(REPORT_EDIT, 'utf8');
 
 test('実 HTML から列見出しを 5 つ取れる', () => {
   const columns = parseColumns(html);
@@ -32,18 +38,45 @@ test('実 HTML から列見出しを 5 つ取れる', () => {
 });
 
 test('実 HTML から集計を取れる', () => {
-  assert.deepEqual(parseCounts(html), { 未完了: 0, 完了: 0, 合計: 0 });
+  assert.deepEqual(parseCounts(html), { 未完了: 1, 完了: 0, 合計: 1 });
 });
 
-test('実 HTML から空状態の文言を取れる', () => {
-  assert.deepEqual(parseEmptyState(html), {
+test('行がある実 HTML には空状態の見出しが無い', () => {
+  assert.equal(parseEmptyState(html), null);
+});
+
+test('空状態の文言を取れる（見出しと本文の組）', () => {
+  const emptyHtml = '<h3>週報がありません</h3>\n'
+    + '<p>管理者によって新しいレポートの締め切りが設定されると、ここにレポートが表示されます。</p>';
+  assert.deepEqual(parseEmptyState(emptyHtml), {
     title: '週報がありません',
     body: '管理者によって新しいレポートの締め切りが設定されると、ここにレポートが表示されます。'
   });
 });
 
-test('実 HTML の行は 0 件（取得したアカウントに週報が無い）', () => {
-  assert.equal(parseReportsPage(html).reports.length, 0);
+test('実 HTML の行は UUID の 1 件', () => {
+  const parsed = parseReportsPage(html);
+  assert.equal(parsed.reports.length, 1);
+  const row = parsed.reports[0];
+  assert.equal(row.id, LIVE_ID);
+  assert.equal(row.title, '10/01のレポート');
+  assert.equal(row.subtitle, '10: (未定)');
+  assert.equal(row.period, '期間未設定');
+  assert.equal(row.status, '未完了');
+  assert.equal(row.due, '2026/10/01 17:00');
+  assert.equal(row.createdAt, '2026/08/24 13:48');
+  assert.equal(row.dueISO, '2026-10-01');
+  assert.equal(row.createdAtISO, '2026-08-24');
+  assert.equal(row.periodStartISO, null);
+  assert.equal(row.periodEndISO, null);
+});
+
+test('parseIdToken は数字と UUID を分け、card_ を捨てる', () => {
+  assert.equal(parseIdToken('114'), 114);
+  assert.equal(parseIdToken(LIVE_ID), LIVE_ID);
+  assert.equal(parseIdToken(LIVE_ID.toUpperCase()), LIVE_ID);
+  assert.equal(parseIdToken('card_' + LIVE_ID), null);
+  assert.equal(parseIdToken('new'), null);
 });
 
 test('ログイン画面を判別できる', () => {
@@ -150,7 +183,7 @@ test('行を取れる（合成した行で検証）', () => {
 
 test('行があっても集計と列見出しは壊れない', () => {
   const parsed = parseReportsPage(populated);
-  assert.deepEqual(parsed.counts, { 未完了: 0, 完了: 0, 合計: 0 });
+  assert.deepEqual(parsed.counts, { 未完了: 1, 完了: 0, 合計: 1 });
   assert.equal(parsed.columns.length, 5);
 });
 
@@ -164,4 +197,96 @@ test('ステータスの前に付くグリフを落とす', () => {
       </tr>${close}`
   );
   assert.equal(parseRows(withGlyph, parseColumns(withGlyph))[0].status, '完了');
+});
+
+// ── 詳細。実 HTML が無いので Stimulus の印に合わせた合成 HTML で検証する ──
+const SYNTHETIC_DETAIL = `
+<html><body>
+<main>
+  <turbo-frame id="side_panel">
+    <div data-controller="collaborative-edit"
+         data-collaborative-edit-report-id-value="114"
+         data-collaborative-edit-current-user-id-value="1"
+         data-collaborative-edit-current-user-name-value="三谷 慧介"
+         data-collaborative-edit-initial-locks-value="[{&quot;field_name&quot;:&quot;next_week&quot;,&quot;user_id&quot;:2,&quot;user_name&quot;:&quot;岸 洋輔&quot;}]">
+      <h2>第14週 週報</h2>
+      <dl>
+        <dt>期間</dt><dd>07/27 – 08/02</dd>
+        <dt>ステータス</dt><dd>未完了</dd>
+        <dt>期限</dt><dd>2026/08/05</dd>
+      </dl>
+      <div>
+        <label for="report_content">今週の活動</label>
+        <textarea id="report_content" data-collaborative-edit-target="field"
+                  data-field-name="content">位置決め精度の測定をやり直し中。</textarea>
+      </div>
+      <div>
+        <label for="report_next_week">来週の予定</label>
+        <textarea id="report_next_week" data-collaborative-edit-target="field"
+                  data-field-name="next_week">検査データをまとめる。</textarea>
+      </div>
+      <div class="timeline">
+        <div class="timeline-item">
+          <time datetime="2026-07-28">2026/07/28</time>
+          作成されました
+        </div>
+      </div>
+    </div>
+  </turbo-frame>
+</main>
+</body></html>
+`;
+
+test('詳細の Turbo Frame を切り出せる', () => {
+  const inner = extractSidePanel(SYNTHETIC_DETAIL);
+  assert.match(inner, /collaborative-edit/);
+  assert.doesNotMatch(inner, /<main/);
+});
+
+test('詳細から項目・メタ・履歴・ロックを取れる（合成 HTML）', () => {
+  const parsed = parseReportDetail(SYNTHETIC_DETAIL);
+  assert.equal(parsed.id, 114);
+  assert.equal(parsed.title, '第14週 週報');
+  assert.deepEqual(parsed.meta.map((m) => m.label), ['期間', 'ステータス', '期限']);
+  assert.equal(parsed.fields.length, 2);
+  assert.equal(parsed.fields[0].name, 'content');
+  assert.equal(parsed.fields[0].label, '今週の活動');
+  assert.equal(parsed.fields[0].value, '位置決め精度の測定をやり直し中。');
+  assert.equal(parsed.fields[1].name, 'next_week');
+  assert.equal(parsed.fields[1].label, '来週の予定');
+  assert.equal(parsed.fields[1].lockedBy, '岸 洋輔');
+  assert.equal(parsed.lockedBy, '岸 洋輔');
+  assert.equal(parsed.timeline.length, 1);
+  assert.equal(parsed.timeline[0].atISO, '2026-07-28');
+  assert.match(parsed.timeline[0].text, /作成/);
+});
+
+test('frame が無い詳細 HTML でも項目を取れる', () => {
+  const parsed = parseReportDetail(`
+    <h2>週報</h2>
+    <label for="a">本文</label>
+    <textarea id="a" data-field-name="content">hello &amp; world</textarea>
+  `);
+  assert.equal(parsed.fields[0].value, 'hello & world');
+  assert.equal(parsed.fields[0].label, '本文');
+});
+
+test('実 HTML の編集画面から項目を取れる', () => {
+  const parsed = parseReportDetail(editHtml);
+  assert.equal(parsed.id, LIVE_ID);
+  assert.equal(parsed.title, null); // 見出しは「週報編集」（画面名）
+  assert.deepEqual(parsed.fields.map((f) => f.name),
+    ['start_at', 'end_at', 'shortnote', 'progress', 'issue', 'plan']);
+  assert.deepEqual(parsed.fields.map((f) => f.label),
+    ['開始日', '終了日', '概要', '進捗', '課題', '計画']);
+  assert.ok(parsed.meta.some((m) => m.label === '提出期限' && m.value === '2026/10/01 17:00'));
+});
+
+test('実 HTML の詳細画面は本文項目を持たずタイトルを返す', () => {
+  const parsed = parseReportDetail(showHtml);
+  assert.equal(parsed.id, LIVE_ID);
+  assert.equal(parsed.title, '10/01のレポート');
+  assert.equal(parsed.fields.length, 0);
+  assert.ok(parsed.meta.some((m) => m.label === '提出期限'));
+  assert.ok(parsed.meta.some((m) => m.label === '作業期間' && m.value === '期間未設定'));
 });
