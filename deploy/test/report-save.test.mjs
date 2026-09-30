@@ -10,6 +10,9 @@ const ID = '8b293839-a910-4bd6-b468-4915b9cefd19';
 const EDIT_HTML = `<!DOCTYPE html><html><head>
 <meta name="csrf-token" content="meta-token" />
 </head><body>
+<form action="/users/sign_out" method="post">
+<input type="hidden" name="authenticity_token" value="logout-token" />
+</form>
 <form action="/reports/${ID}" method="post">
 <input type="hidden" name="authenticity_token" value="form-token" />
 <input type="datetime-local" name="report[start_at]" id="report_start_at" value="2026-10-01T09:00" />

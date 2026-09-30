@@ -148,8 +148,10 @@ async function page(cookie, path, parse, env, ctx, { refresh = false } = {}) {
     fetchFresh: () => pageLive(cookie, path, parse, env)
   });
 
-  // 今の画面から行ける他画面を裏で温めておく（レールの全画面）
-  if (!refresh && ctx?.waitUntil) {
+  // 裏更新中に warm まで waitUntil に積むと、元アプリが遅くて枠を食い、
+  // 本番ログどおり revalidate のキャッシュ書き込みまでキャンセルされる。
+  // 温めるのは fresh ヒットのときだけ（クライアントの先読みもある）。
+  if (!refresh && ctx?.waitUntil && result?.source === 'cache' && !result.revalidating) {
     ctx.waitUntil(warmReachable(cookie, path, env).catch((e) => {
       console.error('warmReachable failed:', e?.message || e);
     }));
@@ -158,7 +160,8 @@ async function page(cookie, path, parse, env, ctx, { refresh = false } = {}) {
   return result;
 }
 
-/** 現在画面以外の一覧を Cache API に載せる。既に新しければ飛ばす。 */
+/** 現在画面以外の一覧を Cache API に載せる。既に新しければ飛ばす。
+ *  waitUntil 枠を食い潰さないよう、1 リクエストあたり最大 1 画面だけ温める。 */
 async function warmReachable(cookie, currentPath, env) {
   const userKey = await userCacheKey(cookie);
   for (const [originPath, parse] of Object.values(PAGES)) {
@@ -176,6 +179,7 @@ async function warmReachable(cookie, currentPath, env) {
     } catch (e) {
       console.error('warm page failed:', originPath, e?.message || e);
     }
+    return; // 1 画面だけ。残りはクライアント先読みか次のリクエストへ
   }
 }
 
