@@ -114,7 +114,8 @@ export async function signOut(cookie) {
   try {
     const page = await origin('/dashboard', { headers: { Accept: 'text/html' } }, cookie);
     const html = await page.text();
-    const token = authenticityToken(html);
+    const token = authenticityToken(html, { formAction: '/users/sign_out' })
+      || authenticityToken(html);
     if (!token) {
       return { ok: false, reason: `authenticity_token が取れない（/dashboard が ${page.status}）` };
     }
@@ -266,7 +267,8 @@ export async function createOrder(cookie, fields) {
     throw new ApiError(401, 'ログインの有効期限が切れました。もう一度ログインしてください。',
       { clearSession: true });
   }
-  const token = authenticityToken(formHtml);
+  // per-form CSRF: ページ先頭のログアウト用トークンではなく /orders フォームのものを使う。
+  const token = authenticityToken(formHtml, { formAction: '/orders' });
   if (!token) throw new ApiError(502, '注文フォームの authenticity_token が見つかりません');
 
   // CSRF は応答で返った Cookie と対なので、更新されていればそちらを使う。
@@ -311,8 +313,16 @@ export async function createOrder(cookie, fields) {
       { clearSession: true });
   }
 
+  if (/InvalidAuthenticityToken|ActionController::InvalidAuthenticityToken/i.test(htmlBody)) {
+    console.error('createOrder CSRF failed:', posted.status, htmlBody.slice(0, 200));
+    throw new ApiError(502, 'CSRF トークンが通りませんでした（注文フォームのトークンを確認してください）');
+  }
+
   if (posted.status === 422 || posted.status === 200) {
     const errors = parseFormErrors(htmlBody);
+    if (!errors.length) {
+      console.error('createOrder rejected:', posted.status, htmlBody.slice(0, 300));
+    }
     throw new ApiError(422, errors[0] || '注文を作成できませんでした', {
       details: errors
     });

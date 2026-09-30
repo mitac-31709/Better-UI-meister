@@ -38,10 +38,47 @@ export function looksLikeSignIn(html) {
   return /name="user\[password\]"/.test(html) || /action="\/users\/sign_in"/.test(html);
 }
 
-/** Devise のフォームから authenticity_token を取り出す */
-export function authenticityToken(html) {
-  const m = html.match(/name="authenticity_token"\s+value="([^"]+)"/);
+/** `<input name="authenticity_token" …>` から value を取る（属性順は問わない）。 */
+function tokenValueFromInput(tag) {
+  if (!tag || !/\bname="authenticity_token"/i.test(tag)) return null;
+  const m = tag.match(/\bvalue="([^"]+)"/i);
   return m ? m[1] : null;
+}
+
+/**
+ * authenticity_token を取り出す。
+ *
+ * Rails はフォームごとに別トークンを出しうる（per-form CSRF）。
+ * ページ先頭のログアウト用フォームのトークンを取ると、注文作成などは 422 になる。
+ * `formAction` を渡したら、その action の <form> 内のトークンを使う。
+ */
+export function authenticityToken(html, { formAction } = {}) {
+  if (!html) return null;
+
+  if (formAction) {
+    const formRe = /<form\b[^>]*>[\s\S]*?<\/form>/gi;
+    let formMatch;
+    while ((formMatch = formRe.exec(html))) {
+      const form = formMatch[0];
+      const open = form.match(/^<form\b[^>]*>/i)?.[0] || '';
+      const action = open.match(/\baction="([^"]*)"/i)?.[1];
+      if (action !== formAction) continue;
+      const inputRe = /<input\b[^>]*>/gi;
+      let inputMatch;
+      while ((inputMatch = inputRe.exec(form))) {
+        const token = tokenValueFromInput(inputMatch[0]);
+        if (token) return token;
+      }
+    }
+  }
+
+  const inputRe = /<input\b[^>]*>/gi;
+  let inputMatch;
+  while ((inputMatch = inputRe.exec(html))) {
+    const token = tokenValueFromInput(inputMatch[0]);
+    if (token) return token;
+  }
+  return null;
 }
 
 /** 集計チップ「未完了 0」「完了 0」「合計 0」 */
@@ -230,13 +267,13 @@ function sliceFrom(html, start, tag) {
 function unescapeAttr(value) {
   return String(value || '')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)))
+    .replace(/&amp;/g, '&');
 }
 
 function headingText(html, level) {
