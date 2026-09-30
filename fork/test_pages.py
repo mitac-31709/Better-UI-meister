@@ -328,11 +328,14 @@ def check_reports(page) -> None:
     check("概要" in body, f"元アプリの項目名が出ていない: {body!r}")
     check(page.input_value("#panel-text") == "測定をやり直し中。",
           f"詳細の本文が出ていない: {page.input_value('#panel-text')!r}")
-    check(page.locator("#panel-save").count() == 0,
-          "実データなのに保存ボタンを出している")
+    check(page.locator("#panel-save").count() == 1,
+          "実データでも保存ボタンが必要")
+    readonly = page.locator("#panel-text").get_attribute("readonly")
+    check(readonly is None, f"本文が読み取り専用になっている: {readonly!r}")
+    check("自動で保存" in body, f"自動保存の案内が無い: {body!r}")
     check("10: (未定)" in page.inner_text("#view"),
           "タイトル下のチーム名が出ていない")
-    print("  週報: 詳細の項目名を素通し / 実データは保存ボタンなし / UUID 行")
+    print("  週報: 詳細の項目名を素通し / 実データも編集できる / UUID 行")
 
 
 def main() -> int:
